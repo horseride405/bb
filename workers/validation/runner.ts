@@ -146,13 +146,32 @@ export async function processNextValidationRun(client: WorkerClient = createServ
         curve: result.equityCurve,
         times: result.equityCurveTimes,
       }, numberValue(parameters, "endTime") - numberValue(parameters, "startTime"), result.trades);
+    const outOfSampleStartIndex = result.walkForward.inSampleCandleCount - 1;
+    const outOfSampleStartTime = result.walkForward.outOfSampleStartTime;
+    const outOfSampleTrades = result.trades.filter(
+      (trade) => trade.entryTime >= outOfSampleStartTime,
+    );
+    const outOfSampleRiskReview = reviewBacktestRisk(result.walkForward.metrics, {
+      maxDailyLossPct: riskPolicy.max_daily_loss_pct,
+      maxDrawdownPct: riskPolicy.max_drawdown_pct,
+      maxTradesPerHour: riskPolicy.max_trades_per_hour,
+      minTradeIntervalSeconds: riskPolicy.min_trade_interval_seconds,
+    }, {
+      initialEquity: result.equityCurve[outOfSampleStartIndex] ?? numberValue(parameters, "initialEquity"),
+      curve: result.equityCurve.slice(outOfSampleStartIndex),
+      times: result.equityCurveTimes.slice(outOfSampleStartIndex),
+    }, numberValue(parameters, "endTime") - outOfSampleStartTime, outOfSampleTrades);
 
     const { error: completionError } = await client.rpc("complete_validation_run", {
       run_id: run.id,
-      run_results: { ...result, validationConfig, riskReview } as unknown as Json,
+      run_results: { ...result, validationConfig, riskReview, outOfSampleRiskReview } as unknown as Json,
     });
     if (completionError) throw new Error(`Unable to complete validation run: ${completionError.message}`);
-    return { runId: run.id, status: "completed" as const, result: { ...result, validationConfig, riskReview } };
+    return {
+      runId: run.id,
+      status: "completed" as const,
+      result: { ...result, validationConfig, riskReview, outOfSampleRiskReview },
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Validation worker failed";
     const { error: failureError } = await client.rpc("fail_validation_run", {

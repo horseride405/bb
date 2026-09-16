@@ -62,6 +62,7 @@ type Run = {
     validationConfig?: ValidationConfig;
     walkForward?: WalkForward;
     riskReview?: RiskReview;
+    outOfSampleRiskReview?: RiskReview;
   } | null;
   error_message: string | null;
   created_at: string;
@@ -201,6 +202,12 @@ function RunRow({ run }: { run: Run }) {
             }
           />
           <Metric label="Risk review" value={run.results?.riskReview?.passed ? "Passed" : "Review"} />
+          {run.results?.outOfSampleRiskReview && (
+            <Metric
+              label="OOS risk"
+              value={run.results.outOfSampleRiskReview.passed ? "Passed" : "Review"}
+            />
+          )}
         </div>
       )}
       {run.status === "completed" && run.results && (
@@ -286,6 +293,13 @@ function RunRow({ run }: { run: Run }) {
       {run.status === "completed" && run.results?.riskReview && !run.results.riskReview.passed && (
         <p className="run-error">{run.results.riskReview.violations.join("; ")}</p>
       )}
+      {run.status === "completed" &&
+        run.results?.outOfSampleRiskReview &&
+        !run.results.outOfSampleRiskReview.passed && (
+          <p className="run-error">
+            OOS risk: {run.results.outOfSampleRiskReview.violations.join("; ")}
+          </p>
+        )}
       {run.status === "failed" && run.error_message && <p className="run-error">{run.error_message}</p>}
     </div>
   );

@@ -9,6 +9,58 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      workspace_subscriptions: {
+        Row: {
+          workspace_id: string;
+          plan: "starter" | "pro" | "enterprise";
+          status: "trialing" | "active" | "past_due" | "cancelled";
+          provider_customer_ref: string | null;
+          provider_subscription_ref: string | null;
+          current_period_start: string;
+          current_period_end: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          workspace_id: string;
+          plan?: "starter" | "pro" | "enterprise";
+          status?: "trialing" | "active" | "past_due" | "cancelled";
+          provider_customer_ref?: string | null;
+          provider_subscription_ref?: string | null;
+          current_period_start?: string;
+          current_period_end?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["workspace_subscriptions"]["Insert"]>;
+        Relationships: [];
+      };
+      workspace_usage_periods: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          period_start: string;
+          period_end: string;
+          validation_runs: number;
+          active_strategies: number;
+          connected_accounts: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          period_start: string;
+          period_end: string;
+          validation_runs?: number;
+          active_strategies?: number;
+          connected_accounts?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["workspace_usage_periods"]["Insert"]>;
+        Relationships: [];
+      };
       strategies: {
         Row: {
           id: string;

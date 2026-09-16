@@ -23,6 +23,7 @@ import { canCancelExecutionIntent } from "@/workers/execution/intent-preflight";
 import { createDisabledExecutionAdapter } from "@/workers/execution/adapter";
 import { validateSecretReference } from "@/workers/execution/secret-manager";
 import { evaluateManualEnablement } from "@/workers/execution/enablement";
+import { evaluateEntitlement, getPlanEntitlements } from "@/lib/billing/entitlements";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -440,5 +441,27 @@ describe("Phase 2 execution safety", () => {
       explicitProductionApproval: true,
     });
     expect(result).toEqual({ enabled: false, blockers: [] });
+  });
+
+  it("enforces Phase 3 plan entitlements fail-closed", () => {
+    expect(getPlanEntitlements("starter").maxStrategies).toBe(3);
+    expect(evaluateEntitlement({
+      plan: "starter",
+      subscriptionStatus: "active",
+      resource: "strategy",
+      currentUsage: 3,
+    })).toEqual({ allowed: false, reason: "plan_limit_reached" });
+    expect(evaluateEntitlement({
+      plan: "starter",
+      subscriptionStatus: "past_due",
+      resource: "validation_run",
+      currentUsage: 0,
+    })).toEqual({ allowed: false, reason: "subscription_not_active" });
+    expect(evaluateEntitlement({
+      plan: "pro",
+      subscriptionStatus: "active",
+      resource: "live_controls",
+      currentUsage: 0,
+    })).toEqual({ allowed: true, reason: null });
   });
 });

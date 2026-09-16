@@ -1,5 +1,9 @@
 import type { PaperStreamConnector } from "@/lib/validation/paper-session";
-import { intervalDurationMs, type FundingRate } from "@/lib/market-data/binance";
+import {
+  fetchBinanceFundingRates,
+  intervalDurationMs,
+  type FundingRate,
+} from "@/lib/market-data/binance";
 import { startPaperTradingSession } from "@/lib/validation/paper-session";
 import { createPaperTradingEngine } from "@/lib/validation/paper-trading";
 import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
@@ -48,6 +52,12 @@ export async function runPaperValidation(
 ): Promise<PaperValidationResult> {
   validateDuration(request.durationMs);
   if (request.signal?.aborted) throw new Error("Paper validation was aborted");
+  const fundingRates =
+    request.fundingRates ??
+    (await fetchBinanceFundingRates(request.symbol, {
+      startTime: Date.now() - 24 * 60 * 60 * 1_000,
+      endTime: Date.now() + request.durationMs,
+    }));
 
   const engine = createPaperTradingEngine({
     initialEquity: request.initialEquity,
@@ -59,7 +69,7 @@ export async function runPaperValidation(
     trailingStopLossPct: request.trailingStopLossPct,
     trailingTakeProfitPct: request.trailingTakeProfitPct,
     trailingTakeProfitActivationPct: request.trailingTakeProfitActivationPct,
-    fundingRates: request.fundingRates,
+    fundingRates,
     signal: createTemplateSignal(request.template, request.signalOptions),
   });
 

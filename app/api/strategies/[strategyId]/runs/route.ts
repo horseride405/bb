@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { parseValidationParameters } from "@/lib/validation/parameters";
 import { createClient } from "@/lib/supabase/server";
-import type { Json } from "@/lib/supabase/database";
 
 type RouteContext = {
   params: Promise<{ strategyId: string }>;
@@ -60,9 +60,12 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Only paper and backtest runs are supported" }, { status: 400 });
   }
 
-  const parameters = (body.parameters ?? {}) as Json;
-  if (typeof parameters !== "object" || parameters === null || Array.isArray(parameters)) {
-    return NextResponse.json({ error: "Run parameters must be an object" }, { status: 400 });
+  let parameters;
+  try {
+    parameters = parseValidationParameters(body.run_type, body.parameters);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid validation parameters";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   const { data: strategy, error: strategyError } = await supabase

@@ -8,9 +8,9 @@ export type Candle = {
   closeTime: number;
 };
 
-const intervals = new Set(["1m", "5m", "15m", "1h", "4h", "1d"]);
+export const supportedIntervals = new Set(["1m", "5m", "15m", "1h", "4h", "1d"]);
 const defaultBaseUrl = "https://fapi.binance.com";
-const maxHistoricalRangeMs = 90 * 24 * 60 * 60 * 1000;
+export const maxHistoricalRangeMs = 90 * 24 * 60 * 60 * 1000;
 
 export type CandleQuery = {
   startTime?: number;
@@ -31,7 +31,7 @@ export async function fetchBinanceCandles(
   if (!/^[A-Z0-9]{5,20}$/.test(normalizedSymbol)) {
     throw new Error("Invalid Binance Futures symbol");
   }
-  if (!intervals.has(interval)) {
+  if (!supportedIntervals.has(interval)) {
     throw new Error("Unsupported candle interval");
   }
   if (!Number.isInteger(limit) || limit < 1 || limit > 1500) {

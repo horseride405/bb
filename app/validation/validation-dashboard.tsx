@@ -20,6 +20,7 @@ type ResultTrade = {
   fees: number;
   entryTime: number;
   exitTime: number;
+  exitReason?: "signal" | "end" | "liquidation" | "trailing_stop_loss" | "trailing_take_profit";
 };
 type RiskReview = { passed: boolean; violations: string[]; observed?: { maxDailyLossPct?: number }; };
 type Run = {
@@ -144,6 +145,11 @@ export default function ValidationDashboard() {
 
 function RunRow({ run }: { run: Run }) {
   const metrics = run.results?.metrics;
+  const exitCounts = (run.results?.trades ?? []).reduce<Record<string, number>>((counts, trade) => {
+    const reason = trade.exitReason ?? "signal";
+    counts[reason] = (counts[reason] ?? 0) + 1;
+    return counts;
+  }, {});
 
   return (
     <div className="run-entry">
@@ -192,11 +198,18 @@ function RunRow({ run }: { run: Run }) {
               }
             />
           </div>
+          {Object.keys(exitCounts).length > 0 && (
+            <div className="trade-list">
+              {Object.entries(exitCounts).map(([reason, count]) => (
+                <span key={reason}>{formatExitReason(reason)}: {count}</span>
+              ))}
+            </div>
+          )}
           {run.results.trades && run.results.trades.length > 0 && (
             <div className="trade-list">
               {run.results.trades.slice(-3).map((trade, index) => (
                 <span key={`${trade.entryTime}-${trade.exitTime}-${index}`}>
-                  {trade.side} {new Date(trade.exitTime).toLocaleDateString()}: {trade.pnl >= 0 ? "+" : ""}
+                  {trade.side} · {formatExitReason(trade.exitReason ?? "signal")} · {new Date(trade.exitTime).toLocaleDateString()}: {trade.pnl >= 0 ? "+" : ""}
                   {trade.pnl.toFixed(2)} PnL
                 </span>
               ))}
@@ -210,6 +223,13 @@ function RunRow({ run }: { run: Run }) {
       {run.status === "failed" && run.error_message && <p className="run-error">{run.error_message}</p>}
     </div>
   );
+}
+
+function formatExitReason(reason: string) {
+  return reason
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

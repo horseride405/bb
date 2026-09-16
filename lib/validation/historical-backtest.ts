@@ -1,6 +1,7 @@
 import {
   fetchBinanceCandleRange,
   fetchBinanceFundingRates,
+  intervalDurationMs,
   maxHistoricalRangeMs,
   type Candle,
   type FundingRate,
@@ -93,6 +94,20 @@ export async function runHistoricalBacktest(
   ]);
   if (candles.length === 0) {
     throw new Error("Historical backtest returned no candles");
+  }
+  if (candles.length < 30) {
+    throw new Error("Historical backtest requires at least 30 candles");
+  }
+  const expectedIntervalMs = intervalDurationMs[request.interval];
+  if (!expectedIntervalMs) {
+    throw new Error("Historical backtest interval is not supported");
+  }
+  for (let index = 1; index < candles.length; index += 1) {
+    const previousCandle = candles[index - 1];
+    const candle = candles[index];
+    if (candle.openTime - previousCandle.openTime > expectedIntervalMs * 2) {
+      throw new Error("Historical backtest detected an incomplete candle-data gap");
+    }
   }
 
   const result = runBacktest(candles, {

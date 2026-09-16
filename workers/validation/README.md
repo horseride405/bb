@@ -48,6 +48,8 @@ Metrics must be calculated from actual historical candles or live streamed paper
 
 Historical runs also evaluate a chronological out-of-sample holdout (30% by default, configurable from 10% through 50%). The holdout begins at a candle boundary, uses the same deterministic signal and real funding inputs, and reports separate return, drawdown, and trade metrics plus up to three chronological fold summaries so in-sample performance is not presented as unseen-data evidence.
 
+Historical runs require at least 30 candles and reject gaps larger than two expected intervals before simulation. Short or incomplete datasets fail rather than producing misleading fold evidence.
+
 Completed worker results also include `validationConfig`, which records the selected template, position mode, trailing-exit settings, leverage/notional limits, liquidation-distance policy, trade-frequency cap, and entry cooldown used for that run. This makes stored validation evidence reproducible even if the workspace policy or strategy draft changes later.
 
 Historical backtests should request explicit candle timestamps through the authenticated market-data boundary. Requests are bounded to a 90-day range; the worker paginates Binance's 1,500-candle response limit deliberately, deduplicates pages, and rejects pagination that stops making progress.

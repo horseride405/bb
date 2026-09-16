@@ -63,3 +63,5 @@ Completed backtests also include a `riskReview` comparing measured maximum drawd
 `connectBinanceClosedCandleStream` is the public market-data input boundary for the future paper engine. It emits only closed, normalized candles and returns a cleanup function. It must run in the worker deployment, never in browser code; reconnect policy and paper-position state belong to the paper worker, and this stream never places orders.
 
 `createPaperTradingEngine` provides the in-memory paper-position boundary for that worker. It consumes the stream's closed candles, reuses a deterministic signal callback, models fees/slippage/leverage, and exposes metrics without submitting Binance orders. Persistence, reconnect handling, stale-data checks, and a live-data paper queue remain worker responsibilities.
+
+`startPaperTradingSession` composes those boundaries for a worker process. It forwards each closed candle to the engine, reports snapshots and stream/engine errors, and on shutdown closes any open paper position before emitting the final snapshot. The session is not a database queue worker and must not be exposed through a browser or used for live order execution.

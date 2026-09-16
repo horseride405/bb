@@ -21,6 +21,13 @@ npm run dev
 
 The first production architecture keeps the dashboard and control plane on Vercel/Supabase. Long-running Binance market-data, risk, reconciliation, and order workers will be deployed separately.
 
+## Current API boundary
+
+- `GET /api/workspaces` lists workspaces visible to the authenticated user.
+- `POST /api/workspaces` creates a workspace and owner membership through the `create_workspace` database function.
+- `GET /api/strategies` lists tenant-visible strategies.
+- `POST /api/strategies` creates paper or backtest strategies; live mode is rejected until the execution safety layer is complete.
+
 ## Safety boundary
 
 Live trading must remain disabled until tenant isolation, encrypted API credentials, paper-trading validation, risk limits, reconciliation, audit logs, and an emergency kill switch are implemented and tested.

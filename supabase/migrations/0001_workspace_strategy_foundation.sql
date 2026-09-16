@@ -81,3 +81,30 @@ create policy "Editors can update workspace strategies"
 create policy "Editors can delete workspace strategies"
   on public.strategies for delete
   using (public.is_workspace_member(workspace_id));
+
+create or replace function public.create_workspace(workspace_name text, workspace_slug text)
+returns setof public.workspaces
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  created_workspace public.workspaces;
+begin
+  if (auth.uid() is null) then
+    raise exception 'Authentication required';
+  end if;
+
+  insert into public.workspaces (name, slug)
+  values (trim(workspace_name), lower(trim(workspace_slug)))
+  returning * into created_workspace;
+
+  insert into public.workspace_members (workspace_id, user_id, role)
+  values (created_workspace.id, auth.uid(), 'owner');
+
+  return next created_workspace;
+end;
+$$;
+
+revoke execute on function public.create_workspace(text, text) from public;
+grant execute on function public.create_workspace(text, text) to authenticated;

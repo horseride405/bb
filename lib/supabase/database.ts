@@ -71,7 +71,15 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      create_workspace: {
+        Args: {
+          workspace_name: string;
+          workspace_slug: string;
+        };
+        Returns: Database["public"]["Tables"]["workspaces"]["Row"][];
+      };
+    };
     Enums: {
       workspace_role: "owner" | "admin" | "trader" | "viewer";
       strategy_status: "draft" | "ready" | "running" | "paused" | "archived";

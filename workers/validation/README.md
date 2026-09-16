@@ -84,6 +84,8 @@ Live strategy approvals are admin-controlled, account-specific, expiring, and re
 
 Approval grants, approval revocations, and emergency-stop changes are recorded through the authenticated `record_audit_event()` function. Audit metadata must contain identifiers and decision context only; never store credentials, signed requests, or full exchange payloads.
 
+`preflightAndPersistExecutionIntent()` is the worker-only idempotency boundary for future execution. It records either `blocked` or `preflighted` intents under a unique idempotency key, rejects reuse of a key for different request fields, and returns `submitted: false` for every result. A preflighted intent is not an order and must not be sent to Binance without a separately approved execution adapter.
+
 The authenticated `/api/risk/validate` boundary accepts an optional long/short position side plus mark and liquidation prices. When supplied, it calculates direction-aware liquidation distance and rejects positions below `min_liquidation_distance_pct`; validation runs do not infer liquidation prices from candles.
 
 The same boundary accepts gross and concentration exposure notionals. If omitted, gross exposure defaults to `position_notional * open_positions` and concentration exposure defaults to the current position notional. Both are bounded by the conservative policy-derived aggregate cap `max_position_notional * max_open_positions`; this is an explicit gate for one-way net long/short exposure, not a substitute for exchange account reconciliation.

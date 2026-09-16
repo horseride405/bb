@@ -7,6 +7,7 @@ import { validateFundingRates } from "@/lib/validation/funding";
 import { reviewBacktestRisk } from "@/lib/validation/risk-gate";
 import { validateTrailingExitOptions } from "@/lib/validation/trailing-exits";
 import { reconcileAccountState } from "@/workers/execution/reconciliation";
+import { intentStatusFromGate } from "@/workers/execution/intent-preflight";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -143,6 +144,11 @@ describe("validation safety boundaries", () => {
 });
 
 describe("Phase 2 execution safety", () => {
+  it("maps gate decisions to non-submitting intent states", () => {
+    expect(intentStatusFromGate(false)).toBe("blocked");
+    expect(intentStatusFromGate(true)).toBe("preflighted");
+  });
+
   it("fails closed when live prerequisites are missing", () => {
     const result = evaluateLiveExecutionGate({
       liveTradingEnabled: false,

@@ -59,3 +59,5 @@ The pure `runLongOnlyBacktest` core accepts real normalized candles plus a strat
 `workers/validation/runner.ts` provides the first queue loop. `processNextValidationRun()` claims one run, loads its strategy and workspace risk policy, executes backtests, and finalizes the run. Paper runs currently fail explicitly because the live-data paper engine has not been implemented; this is safer than reporting an incomplete result.
 
 Completed backtests also include a `riskReview` comparing measured maximum drawdown with the workspace policy. A passing review is evidence for the next gate only; it does not authorize live trading. Daily loss, liquidation distance, reconciliation, and paper-trading gates remain separate requirements.
+
+`connectBinanceClosedCandleStream` is the public market-data input boundary for the future paper engine. It emits only closed, normalized candles and returns a cleanup function. It must run in the worker deployment, never in browser code; reconnect policy and paper-position state belong to the paper worker, and this stream never places orders.

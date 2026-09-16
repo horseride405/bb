@@ -16,6 +16,7 @@ import { runWorkerSupervisor } from "@/workers/execution/supervisor";
 import {
   assertExecutionOrderTransition,
   canTransitionExecutionOrder,
+  validateExecutionFillInput,
 } from "@/workers/execution/order-state";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
@@ -369,5 +370,22 @@ describe("Phase 2 execution safety", () => {
     expect(() => assertExecutionOrderTransition("cancelled", "filled")).toThrow(
       "Invalid execution order transition",
     );
+  });
+
+  it("rejects invalid or future execution fills", () => {
+    expect(() => validateExecutionFillInput({
+      price: 0,
+      quantity: 1,
+      fee: 0,
+      executedAt: 100,
+      now: 100,
+    })).toThrow("Execution fill contains invalid values");
+    expect(() => validateExecutionFillInput({
+      price: 10,
+      quantity: 1,
+      fee: 0,
+      executedAt: 101,
+      now: 100,
+    })).toThrow("Execution fill contains invalid values");
   });
 });

@@ -1,6 +1,7 @@
 import type { Database } from "@/lib/supabase/database";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { recordWorkerAuditEvent } from "@/workers/execution/audit";
 
 export type ExecutionOrderStatus =
   | "pending"
@@ -35,6 +36,28 @@ export function assertExecutionOrderTransition(
   }
 }
 
+export function validateExecutionFillInput(input: {
+  price: number;
+  quantity: number;
+  fee: number;
+  executedAt: number;
+  now?: number;
+}) {
+  const now = input.now ?? Date.now();
+  if (
+    !Number.isFinite(input.price) ||
+    input.price <= 0 ||
+    !Number.isFinite(input.quantity) ||
+    input.quantity <= 0 ||
+    !Number.isFinite(input.fee) ||
+    input.fee < 0 ||
+    !Number.isFinite(input.executedAt) ||
+    input.executedAt > now
+  ) {
+    throw new Error("Execution fill contains invalid values");
+  }
+}
+
 type WorkerClient = SupabaseClient<Database>;
 
 export async function persistExecutionOrderStatus(
@@ -48,6 +71,12 @@ export async function persistExecutionOrderStatus(
   client: WorkerClient = createServiceClient(),
 ) {
   assertExecutionOrderTransition(input.currentStatus, input.nextStatus);
+  const { data: order, error: orderError } = await client
+    .from("execution_orders")
+    .select("workspace_id")
+    .eq("id", input.orderId)
+    .single();
+  if (orderError || !order) throw new Error("Execution order metadata not found");
   const terminal = input.nextStatus === "filled"
     || input.nextStatus === "cancelled"
     || input.nextStatus === "rejected";
@@ -64,4 +93,50 @@ export async function persistExecutionOrderStatus(
     .eq("id", input.orderId)
     .eq("status", input.currentStatus);
   if (error) throw new Error(`Unable to persist execution order state: ${error.message}`);
+  await recordWorkerAuditEvent(client, {
+    workspaceId: order.workspace_id,
+    eventType: "execution_order_status_changed",
+    resourceType: "execution_order",
+    resourceId: input.orderId,
+    metadata: {
+      previous_status: input.currentStatus,
+      next_status: input.nextStatus,
+    },
+  });
+}
+
+export async function persistExecutionFill(
+  input: {
+    workspaceId: string;
+    accountConnectionId: string;
+    executionOrderId: string;
+    exchangeTradeId: string;
+    price: number;
+    quantity: number;
+    fee: number;
+    feeAsset?: string | null;
+    executedAt: number;
+  },
+  client: WorkerClient = createServiceClient(),
+) {
+  validateExecutionFillInput(input);
+  const { data: inserted, error: insertError } = await client
+    .from("execution_fills")
+    .insert({
+      workspace_id: input.workspaceId,
+      execution_order_id: input.executionOrderId,
+      account_connection_id: input.accountConnectionId,
+      exchange_trade_id: input.exchangeTradeId,
+      price: input.price,
+      quantity: input.quantity,
+      fee: input.fee,
+      fee_asset: input.feeAsset ?? null,
+      executed_at: new Date(input.executedAt).toISOString(),
+    })
+    .select("id")
+    .maybeSingle();
+  if (insertError?.code === "23505") return { created: false, fillId: null };
+  if (insertError) throw new Error(`Unable to persist execution fill: ${insertError.message}`);
+  if (!inserted) throw new Error("Execution fill was not persisted");
+  return { created: true, fillId: inserted.id };
 }

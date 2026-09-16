@@ -104,6 +104,8 @@ Worker account verification and heartbeat status transitions write service-role 
 
 Execution order and fill records are modeled separately from preflight intents. `execution_orders` has a monotonic lifecycle (`pending → submitted → partially_filled → filled|cancelled|rejected`), while `execution_fills` uses an account-scoped exchange trade ID for deduplication. These tables are worker-write/service-role-only and do not create an order-submission path.
 
+`persistExecutionFill()` rejects non-finite, non-positive, negative-fee, or future-dated fills and treats an exchange trade-ID conflict as an idempotent replay. `persistExecutionOrderStatus()` audits each accepted lifecycle transition; neither helper calls an exchange API.
+
 The authenticated `/api/risk/validate` boundary accepts an optional long/short position side plus mark and liquidation prices. When supplied, it calculates direction-aware liquidation distance and rejects positions below `min_liquidation_distance_pct`; validation runs do not infer liquidation prices from candles.
 
 The same boundary accepts gross and concentration exposure notionals. If omitted, gross exposure defaults to `position_notional * open_positions` and concentration exposure defaults to the current position notional. Both are bounded by the conservative policy-derived aggregate cap `max_position_notional * max_open_positions`; this is an explicit gate for one-way net long/short exposure, not a substitute for exchange account reconciliation.

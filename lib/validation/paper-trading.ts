@@ -4,8 +4,15 @@ import {
   type BacktestTrade,
 } from "@/lib/validation/backtest";
 import { calculateValidationMetrics, type ValidationMetrics } from "@/lib/validation/metrics";
+import {
+  createTrailingState,
+  evaluateTrailingExit,
+  validateTrailingExitOptions,
+  type TrailingExitOptions,
+  type TrailingState,
+} from "@/lib/validation/trailing-exits";
 
-export type PaperTradingOptions = {
+export type PaperTradingOptions = TrailingExitOptions & {
   initialEquity: number;
   feeRateBps: number;
   slippageBps: number;
@@ -34,6 +41,7 @@ type Position = {
   liquidationPrice: number;
   entryIndex: number;
   fundingCost: number;
+  trailing: TrailingState;
 };
 
 function validateCandle(candle: Candle, previousCandle?: Candle) {
@@ -77,6 +85,7 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
   ) {
     throw new Error("Paper minimum liquidation distance must be positive");
   }
+  validateTrailingExitOptions(options);
   for (const rate of options.fundingRates ?? []) {
     if (!Number.isInteger(rate.fundingTime) || !Number.isFinite(rate.fundingRate)) {
       throw new Error("Paper funding rates must contain finite timestamps and rates");
@@ -100,7 +109,7 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
   const closePosition = (
     candle: Candle,
     forcedExitPrice?: number,
-    exitReason: "signal" | "end" | "liquidation" = "signal",
+    exitReason: BacktestTrade["exitReason"] = "signal",
   ) => {
     if (!position) return;
     const exitPrice =
@@ -153,6 +162,23 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
       closePosition(candle, position.liquidationPrice, "liquidation");
       liquidatedThisCandle = true;
     }
+    if (!liquidatedThisCandle && position && equityCurve.length > position.entryIndex) {
+      const trailingExit = evaluateTrailingExit(
+        position.side,
+        candle,
+        position.entryPrice,
+        position.trailing,
+        options,
+      );
+      if (trailingExit) {
+        closePosition(
+          candle,
+          trailingExit.price * (position.side === "long" ? 1 - slippageRate : 1 + slippageRate),
+          trailingExit.reason,
+        );
+        liquidatedThisCandle = true;
+      }
+    }
     if (!liquidatedThisCandle && position && (signal === "flat" || signal !== position.side)) {
       closePosition(candle);
     }
@@ -187,6 +213,7 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
           liquidationPrice,
           entryIndex: equityCurve.length,
           fundingCost: 0,
+          trailing: createTrailingState(entryPrice),
         };
       }
     }

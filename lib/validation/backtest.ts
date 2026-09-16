@@ -1,9 +1,16 @@
 import type { Candle, FundingRate } from "@/lib/market-data/binance";
 import { calculateValidationMetrics, type TradeOutcome, type ValidationMetrics } from "@/lib/validation/metrics";
+import {
+  createTrailingState,
+  evaluateTrailingExit,
+  validateTrailingExitOptions,
+  type TrailingExitOptions,
+  type TrailingState,
+} from "@/lib/validation/trailing-exits";
 
 export type BacktestSignal = "long" | "short" | "flat";
 
-export type BacktestOptions = {
+export type BacktestOptions = TrailingExitOptions & {
   initialEquity: number;
   feeRateBps: number;
   slippageBps: number;
@@ -23,7 +30,7 @@ export type BacktestTrade = TradeOutcome & {
   exitPrice: number;
   quantity: number;
   liquidationPrice?: number;
-  exitReason: "signal" | "end" | "liquidation";
+  exitReason: "signal" | "end" | "liquidation" | "trailing_stop_loss" | "trailing_take_profit";
   liquidated: boolean;
 };
 
@@ -87,6 +94,7 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
   ) {
     throw new Error("Backtest minimum liquidation distance must be positive");
   }
+  validateTrailingExitOptions(options);
 
   const feeRate = options.feeRateBps / 10_000;
   const slippageRate = options.slippageBps / 10_000;
@@ -101,6 +109,7 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
         fundingCost: number;
         liquidationPrice: number;
         entryIndex: number;
+        trailing: TrailingState;
       }
     | undefined;
   const equityCurve: number[] = [];
@@ -111,7 +120,7 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
   const closePosition = (
     candle: Candle,
     forcedExitPrice?: number,
-    exitReason: "signal" | "end" | "liquidation" = "signal",
+    exitReason: BacktestTrade["exitReason"] = "signal",
   ) => {
     if (!position) return;
     const exitPrice =
@@ -164,6 +173,19 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
       closePosition(candle, position.liquidationPrice, "liquidation");
       liquidatedThisCandle = true;
     }
+    if (!liquidatedThisCandle && position && index > position.entryIndex) {
+      const trailingExit = evaluateTrailingExit(
+        position.side,
+        candle,
+        position.entryPrice,
+        position.trailing,
+        options,
+      );
+      if (trailingExit) {
+        closePosition(candle, trailingExit.price * (position.side === "long" ? 1 - slippageRate : 1 + slippageRate), trailingExit.reason);
+        liquidatedThisCandle = true;
+      }
+    }
     if (!liquidatedThisCandle && position && (signal === "flat" || signal !== position.side)) {
       closePosition(candle);
     }
@@ -198,6 +220,7 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
           fundingCost: 0,
           liquidationPrice,
           entryIndex: index,
+          trailing: createTrailingState(entryPrice),
         };
       }
     }

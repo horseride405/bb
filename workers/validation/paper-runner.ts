@@ -3,8 +3,9 @@ import { intervalDurationMs, type FundingRate } from "@/lib/market-data/binance"
 import { startPaperTradingSession } from "@/lib/validation/paper-session";
 import { createPaperTradingEngine } from "@/lib/validation/paper-trading";
 import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
+import type { TrailingExitOptions } from "@/lib/validation/trailing-exits";
 
-export type PaperValidationRequest = {
+export type PaperValidationRequest = TrailingExitOptions & {
   symbol: string;
   interval: string;
   template: StrategyTemplate;
@@ -55,6 +56,9 @@ export async function runPaperValidation(
     maxLeverage: request.maxLeverage,
     maxPositionNotional: request.maxPositionNotional,
     minLiquidationDistancePct: request.minLiquidationDistancePct,
+    trailingStopLossPct: request.trailingStopLossPct,
+    trailingTakeProfitPct: request.trailingTakeProfitPct,
+    trailingTakeProfitActivationPct: request.trailingTakeProfitActivationPct,
     fundingRates: request.fundingRates,
     signal: createTemplateSignal(request.template, request.signalOptions),
   });

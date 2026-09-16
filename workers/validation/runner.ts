@@ -40,6 +40,15 @@ function positionModeValue(record: Record<string, Json | undefined>): PositionMo
   return value;
 }
 
+function optionalPercentValue(record: Record<string, Json | undefined>, name: string) {
+  const value = record[name];
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > 100) {
+    throw new Error(`${name} must be between 0 and 100`);
+  }
+  return value;
+}
+
 export async function processNextValidationRun(client: WorkerClient = createServiceClient()) {
   const { data: claimedRuns, error: claimError } = await client.rpc("claim_next_validation_run", {});
   if (claimError) throw new Error(`Unable to claim validation run: ${claimError.message}`);
@@ -59,6 +68,11 @@ export async function processNextValidationRun(client: WorkerClient = createServ
     const parameters = recordFromJson(run.parameters, "Run parameters");
     const config = recordFromJson(strategy.config, "Strategy config");
     const signalOptions = { positionMode: positionModeValue(config) };
+    const trailingOptions = {
+      trailingStopLossPct: optionalPercentValue(config, "trailingStopLossPct"),
+      trailingTakeProfitPct: optionalPercentValue(config, "trailingTakeProfitPct"),
+      trailingTakeProfitActivationPct: optionalPercentValue(config, "trailingTakeProfitActivationPct"),
+    };
     if (run.run_type === "paper") {
       const result = await runPaperValidation({
         symbol: String(parameters.symbol),
@@ -70,6 +84,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
         maxLeverage: riskPolicy.max_leverage,
         maxPositionNotional: riskPolicy.max_position_notional,
         minLiquidationDistancePct: riskPolicy.min_liquidation_distance_pct,
+        ...trailingOptions,
         template: templateValue(config),
         signalOptions,
       });
@@ -102,6 +117,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
       maxLeverage: riskPolicy.max_leverage,
       maxPositionNotional: riskPolicy.max_position_notional,
       minLiquidationDistancePct: riskPolicy.min_liquidation_distance_pct,
+      ...trailingOptions,
       template: templateValue(config),
       signalOptions,
     });

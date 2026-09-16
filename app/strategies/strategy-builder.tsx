@@ -34,6 +34,9 @@ export default function StrategyBuilder() {
   const [interval, setInterval] = useState("15m");
   const [leverage, setLeverage] = useState("3");
   const [positionMode, setPositionMode] = useState<PositionMode>("bidirectional");
+  const [trailingStopLossPct, setTrailingStopLossPct] = useState("2");
+  const [trailingTakeProfitPct, setTrailingTakeProfitPct] = useState("1");
+  const [trailingTakeProfitActivationPct, setTrailingTakeProfitActivationPct] = useState("1.5");
   const [workspaceId, setWorkspaceId] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
   const [saved, setSaved] = useState(false);
@@ -97,6 +100,9 @@ export default function StrategyBuilder() {
             interval,
             maxLeverage: Number(leverage),
             positionMode,
+            trailingStopLossPct: Number(trailingStopLossPct),
+            trailingTakeProfitPct: Number(trailingTakeProfitPct),
+            trailingTakeProfitActivationPct: Number(trailingTakeProfitActivationPct),
           },
         }),
       });
@@ -220,6 +226,18 @@ export default function StrategyBuilder() {
                 <option value="long-only">Long only</option>
                 <option value="short-only">Short only</option>
               </select>
+            </label>
+            <label>
+              Trailing stop loss (%)
+              <input type="number" min="0.01" max="100" step="0.01" value={trailingStopLossPct} onChange={(event) => { setTrailingStopLossPct(event.target.value); setSaved(false); }} />
+            </label>
+            <label>
+              Trailing take profit (%)
+              <input type="number" min="0.01" max="100" step="0.01" value={trailingTakeProfitPct} onChange={(event) => { setTrailingTakeProfitPct(event.target.value); setSaved(false); }} />
+            </label>
+            <label>
+              Take-profit activation (%)
+              <input type="number" min="0.01" max="100" step="0.01" value={trailingTakeProfitActivationPct} onChange={(event) => { setTrailingTakeProfitActivationPct(event.target.value); setSaved(false); }} />
             </label>
           </div>
           <div className="selected-signal">

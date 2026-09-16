@@ -7,8 +7,9 @@ import {
 } from "@/lib/market-data/binance";
 import { runBacktest, type BacktestResult } from "@/lib/validation/backtest";
 import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
+import type { TrailingExitOptions } from "@/lib/validation/trailing-exits";
 
-export type HistoricalBacktestRequest = {
+export type HistoricalBacktestRequest = TrailingExitOptions & {
   symbol: string;
   interval: string;
   startTime: number;
@@ -86,6 +87,9 @@ export async function runHistoricalBacktest(
     maxPositionNotional: request.maxPositionNotional,
     maintenanceMarginRate: request.maintenanceMarginRate,
     minLiquidationDistancePct: request.minLiquidationDistancePct,
+    trailingStopLossPct: request.trailingStopLossPct,
+    trailingTakeProfitPct: request.trailingTakeProfitPct,
+    trailingTakeProfitActivationPct: request.trailingTakeProfitActivationPct,
     fundingRates,
     signal: createTemplateSignal(request.template, request.signalOptions),
   });

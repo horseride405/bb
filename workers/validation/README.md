@@ -43,3 +43,5 @@ The service-role key belongs only in the worker deployment secret store. It must
 ```
 
 Metrics must be calculated from actual historical candles or live streamed paper-trading events. The worker must not populate successful results from placeholders or predicted values.
+
+Historical backtests should request explicit candle timestamps through the authenticated market-data boundary. Requests are bounded to a 90-day range and a maximum of 1,500 candles; workers should paginate deliberately rather than issuing unbounded data requests.

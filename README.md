@@ -30,7 +30,7 @@ The first production architecture keeps the dashboard and control plane on Verce
 - `GET/PATCH /api/risk-policies` reads or updates admin-controlled workspace limits.
 - `POST /api/risk/validate` checks proposed leverage, notional, loss, and position counts before execution.
 - `GET/POST /api/strategies/:id/runs` lists or queues paper/backtest validation runs; a worker will process queued runs in a later slice.
-- `GET /api/market-data/candles` fetches normalized public Binance Futures candles for authenticated paper/backtest clients.
+- `GET /api/market-data/candles` fetches normalized public Binance Futures candles for authenticated paper/backtest clients; historical requests may provide bounded `startTime` and `endTime` timestamps.
 
 Queued runs are claimed atomically through `claim_next_validation_run()` by a separate worker process. The worker contract is documented in `workers/validation/README.md`; it never places live Binance orders.
 

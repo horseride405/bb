@@ -20,16 +20,31 @@ export async function GET(request: Request) {
   const symbol = searchParams.get("symbol") ?? "BTCUSDT";
   const interval = searchParams.get("interval") ?? "15m";
   const limit = Number(searchParams.get("limit") ?? "200");
+  const startTime = searchParams.has("startTime") ? Number(searchParams.get("startTime")) : undefined;
+  const endTime = searchParams.has("endTime") ? Number(searchParams.get("endTime")) : undefined;
 
   try {
-    const candles = await fetchBinanceCandles(symbol, interval, limit);
+    const candles = await fetchBinanceCandles(symbol, interval, limit, { startTime, endTime });
     return NextResponse.json(
-      { symbol: symbol.toUpperCase(), interval, candles, source: "binance-futures-public" },
+      {
+        symbol: symbol.toUpperCase(),
+        interval,
+        startTime,
+        endTime,
+        candles,
+        source: "binance-futures-public",
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load market data";
-    const status = message.startsWith("Invalid") || message.startsWith("Unsupported") || message.startsWith("Candle") ? 400 : 502;
+    const status =
+      message.startsWith("Invalid") ||
+      message.startsWith("Unsupported") ||
+      message.startsWith("Candle") ||
+      message.startsWith("Historical")
+        ? 400
+        : 502;
     return NextResponse.json({ error: message }, { status });
   }
 }

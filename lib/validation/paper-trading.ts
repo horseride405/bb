@@ -1,4 +1,5 @@
 import type { Candle, FundingRate } from "@/lib/market-data/binance";
+import { validateCandle } from "@/lib/validation/candles";
 import { validateFundingRates } from "@/lib/validation/funding";
 import {
   type BacktestSignal,
@@ -44,24 +45,6 @@ type Position = {
   fundingCost: number;
   trailing: TrailingState;
 };
-
-function validateCandle(candle: Candle, previousCandle?: Candle) {
-  if (
-    !Number.isFinite(candle.openTime) ||
-    !Number.isFinite(candle.closeTime) ||
-    !Number.isFinite(candle.close) ||
-    candle.close <= 0 ||
-    !Number.isFinite(candle.high) ||
-    !Number.isFinite(candle.low) ||
-    candle.high < candle.low ||
-    candle.low <= 0
-  ) {
-    throw new Error("Paper candles must contain positive finite close prices and timestamps");
-  }
-  if (previousCandle && candle.openTime <= previousCandle.openTime) {
-    throw new Error("Paper candles must be sorted by increasing open time");
-  }
-}
 
 export function createPaperTradingEngine(options: PaperTradingOptions) {
   if (!Number.isFinite(options.initialEquity) || options.initialEquity <= 0) {

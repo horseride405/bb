@@ -1,4 +1,5 @@
 import type { Candle, FundingRate } from "@/lib/market-data/binance";
+import { validateCandle } from "@/lib/validation/candles";
 import { validateFundingRates } from "@/lib/validation/funding";
 import { calculateValidationMetrics, type TradeOutcome, type ValidationMetrics } from "@/lib/validation/metrics";
 import {
@@ -45,21 +46,10 @@ export type BacktestResult = {
 function assertCandles(candles: Candle[]) {
   for (let index = 0; index < candles.length; index += 1) {
     const candle = candles[index];
-    if (
-      !candle ||
-      !Number.isFinite(candle.close) ||
-      candle.close <= 0 ||
-      !Number.isFinite(candle.high) ||
-      !Number.isFinite(candle.low) ||
-      candle.high < candle.low ||
-      candle.low <= 0 ||
-      !Number.isFinite(candle.openTime)
-    ) {
-      throw new Error("Backtest candles must contain valid positive OHLC prices");
+    if (!candle) {
+      throw new Error("Backtest candles must contain valid positive OHLC prices and timestamps");
     }
-    if (index > 0 && candle.openTime <= candles[index - 1].openTime) {
-      throw new Error("Backtest candles must be sorted by increasing open time");
-    }
+    validateCandle(candle, candles[index - 1]);
   }
 }
 

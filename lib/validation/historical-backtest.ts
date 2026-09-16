@@ -7,6 +7,7 @@ import {
   type FundingRate,
 } from "@/lib/market-data/binance";
 import { runBacktest, type BacktestResult } from "@/lib/validation/backtest";
+import { validateCandle } from "@/lib/validation/candles";
 import { validateFundingRates } from "@/lib/validation/funding";
 import { calculateValidationMetrics, type ValidationMetrics } from "@/lib/validation/metrics";
 import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
@@ -98,6 +99,16 @@ export async function runHistoricalBacktest(
   }
   if (candles.length < 30) {
     throw new Error("Historical backtest requires at least 30 candles");
+  }
+  for (let index = 0; index < candles.length; index += 1) {
+    const candle = candles[index];
+    if (
+      candle.openTime < request.startTime ||
+      candle.closeTime > request.endTime
+    ) {
+      throw new Error("Historical candles must remain within the requested window");
+    }
+    validateCandle(candle, candles[index - 1]);
   }
   validateFundingRates(fundingRates, {
     startTime: request.startTime,

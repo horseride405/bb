@@ -83,6 +83,7 @@ export type Database = {
           min_trade_interval_seconds: number;
           kill_switch_active: boolean;
           live_trading_enabled: boolean;
+          live_emergency_stop_active: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -99,6 +100,7 @@ export type Database = {
           min_trade_interval_seconds?: number;
           kill_switch_active?: boolean;
           live_trading_enabled?: boolean;
+          live_emergency_stop_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -137,6 +139,122 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["strategy_runs"]["Insert"]>;
         Relationships: [];
       };
+      binance_account_connections: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          name: string;
+          environment: "testnet" | "mainnet";
+          status: "pending" | "connected" | "disabled" | "error";
+          api_key_last4: string | null;
+          last_verified_at: string | null;
+          last_error: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          name: string;
+          environment?: "testnet" | "mainnet";
+          status?: "pending" | "connected" | "disabled" | "error";
+          api_key_last4?: string | null;
+          last_verified_at?: string | null;
+          last_error?: string | null;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["binance_account_connections"]["Insert"]>;
+        Relationships: [];
+      };
+      live_strategy_approvals: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          strategy_id: string;
+          account_connection_id: string;
+          approved_by: string;
+          approved_at: string;
+          expires_at: string;
+          revoked_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          strategy_id: string;
+          account_connection_id: string;
+          approved_by: string;
+          approved_at?: string;
+          expires_at: string;
+          revoked_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["live_strategy_approvals"]["Insert"]>;
+        Relationships: [];
+      };
+      reconciliation_snapshots: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          account_connection_id: string;
+          observed_at: string;
+          status: "healthy" | "mismatch" | "stale" | "error";
+          balances: Json;
+          positions: Json;
+          error_message: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          account_connection_id: string;
+          observed_at: string;
+          status: "healthy" | "mismatch" | "stale" | "error";
+          balances?: Json;
+          positions?: Json;
+          error_message?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["reconciliation_snapshots"]["Insert"]>;
+        Relationships: [];
+      };
+      execution_intents: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          strategy_id: string;
+          account_connection_id: string;
+          idempotency_key: string;
+          side: "long" | "short" | "flat";
+          reduce_only: boolean;
+          position_notional: number;
+          status: "pending" | "blocked" | "preflighted" | "cancelled";
+          risk_snapshot: Json;
+          blocked_reasons: Json;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          strategy_id: string;
+          account_connection_id: string;
+          idempotency_key: string;
+          side: "long" | "short" | "flat";
+          reduce_only?: boolean;
+          position_notional: number;
+          status?: "pending" | "blocked" | "preflighted" | "cancelled";
+          risk_snapshot?: Json;
+          blocked_reasons?: Json;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["execution_intents"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -172,6 +290,10 @@ export type Database = {
       strategy_mode: "paper" | "backtest" | "live";
       validation_run_type: "paper" | "backtest";
       validation_run_status: "queued" | "running" | "completed" | "failed" | "cancelled";
+      binance_account_environment: "testnet" | "mainnet";
+      binance_account_status: "pending" | "connected" | "disabled" | "error";
+      reconciliation_status: "healthy" | "mismatch" | "stale" | "error";
+      execution_intent_status: "pending" | "blocked" | "preflighted" | "cancelled";
     };
     CompositeTypes: Record<string, never>;
   };

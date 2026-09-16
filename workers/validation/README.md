@@ -72,6 +72,14 @@ The validation dashboard shows exit-reason counts and recent trade reasons so st
 
 Completed validation details can be exported from the dashboard as the exact worker-produced JSON result or a CSV of closed trades. Exports are browser downloads of already-authorized tenant results; they do not fetch Binance credentials or recompute metrics client-side.
 
+## Phase 2 controlled-live boundary
+
+Phase 2 introduces the control-plane and worker contracts for live trading, but this repository still does not submit Binance orders. Account connection metadata is tenant-scoped; secret material belongs only in a worker-side secret manager reference table that has no authenticated-client RLS access. The browser receives only account name, environment, status, and an optional API-key suffix.
+
+Live strategy approvals are admin-controlled, account-specific, expiring, and revocable. The live emergency stop defaults active, and live trading remains disabled by default. `evaluateLiveExecutionGate()` fails closed unless the account is connected, credentials are available to the worker, approval is current, reconciliation is healthy and fresh, risk checks pass, the position is within limits, and the intent is reduce-only.
+
+`reconcileAccountState()` compares expected and observed one-way positions and records healthy, mismatch, stale, or error snapshots through the service-role worker client. Any mismatch or stale snapshot blocks execution. `preflightLiveExecution()` returns `submitted: false` by construction; an execution adapter, exchange-side idempotency, order reconciliation, and manual production enablement are still required before real orders can exist.
+
 The authenticated `/api/risk/validate` boundary accepts an optional long/short position side plus mark and liquidation prices. When supplied, it calculates direction-aware liquidation distance and rejects positions below `min_liquidation_distance_pct`; validation runs do not infer liquidation prices from candles.
 
 The same boundary accepts gross and concentration exposure notionals. If omitted, gross exposure defaults to `position_notional * open_positions` and concentration exposure defaults to the current position notional. Both are bounded by the conservative policy-derived aggregate cap `max_position_notional * max_open_positions`; this is an explicit gate for one-way net long/short exposure, not a substitute for exchange account reconciliation.

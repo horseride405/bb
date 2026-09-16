@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Candle } from "@/lib/market-data/binance";
+import { evaluateLiveExecutionGate } from "@/lib/execution/live-gate";
 import { runBacktest, type BacktestOptions } from "@/lib/validation/backtest";
 import { validateCandle } from "@/lib/validation/candles";
 import { validateFundingRates } from "@/lib/validation/funding";
 import { reviewBacktestRisk } from "@/lib/validation/risk-gate";
 import { validateTrailingExitOptions } from "@/lib/validation/trailing-exits";
+import { reconcileAccountState } from "@/workers/execution/reconciliation";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -137,5 +139,71 @@ describe("validation safety boundaries", () => {
 
     expect(review.passed).toBe(false);
     expect(review.violations).toHaveLength(4);
+  });
+});
+
+describe("Phase 2 execution safety", () => {
+  it("fails closed when live prerequisites are missing", () => {
+    const result = evaluateLiveExecutionGate({
+      liveTradingEnabled: false,
+      emergencyStopActive: true,
+      killSwitchActive: false,
+      accountStatus: "pending",
+      credentialConfigured: false,
+      approvalExpiresAt: null,
+      reconciliation: null,
+      reduceOnly: false,
+      riskAllowed: true,
+      positionNotional: 100,
+      maxPositionNotional: 1_000,
+      now: 1_000,
+    });
+
+    expect(result.allowed).toBe(false);
+    expect(result.violations).toEqual(expect.arrayContaining([
+      "live_trading_disabled",
+      "live_emergency_stop_active",
+      "account_not_connected",
+      "account_credentials_unavailable",
+      "live_approval_missing_or_expired",
+      "reconciliation_not_healthy",
+      "non_reduce_only_execution_disabled",
+    ]));
+  });
+
+  it("allows only a fresh, approved, reduce-only preflight", () => {
+    const result = evaluateLiveExecutionGate({
+      liveTradingEnabled: true,
+      emergencyStopActive: false,
+      killSwitchActive: false,
+      accountStatus: "connected",
+      credentialConfigured: true,
+      approvalExpiresAt: 2_000,
+      reconciliation: { status: "healthy", observedAt: 950 },
+      reduceOnly: true,
+      riskAllowed: true,
+      positionNotional: 100,
+      maxPositionNotional: 1_000,
+      now: 1_000,
+    });
+
+    expect(result).toEqual({ allowed: true, violations: [] });
+  });
+
+  it("detects reconciliation mismatches and unexpected positions", () => {
+    const result = reconcileAccountState({
+      observedAt: Date.now(),
+      expectedPositions: [{ symbol: "BTCUSDT", side: "long", quantity: 1, entryPrice: 100 }],
+      observedPositions: [
+        { symbol: "BTCUSDT", side: "long", quantity: 2, entryPrice: 100 },
+        { symbol: "ETHUSDT", side: "short", quantity: 1, entryPrice: 50 },
+      ],
+    });
+
+    expect(result.status).toBe("mismatch");
+    expect(result.differences).toEqual(expect.arrayContaining([
+      "position_mismatch:BTCUSDT:long",
+      "unexpected_observed_position:ETHUSDT:short",
+    ]));
   });
 });

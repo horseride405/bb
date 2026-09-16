@@ -141,6 +141,10 @@ export type Database = {
         };
         Returns: Database["public"]["Tables"]["workspaces"]["Row"][];
       };
+      claim_next_validation_run: {
+        Args: Record<string, never>;
+        Returns: Database["public"]["Tables"]["strategy_runs"]["Row"][];
+      };
     };
     Enums: {
       workspace_role: "owner" | "admin" | "trader" | "viewer";

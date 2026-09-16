@@ -31,6 +31,8 @@ The first production architecture keeps the dashboard and control plane on Verce
 - `POST /api/risk/validate` checks proposed leverage, notional, loss, and position counts before execution.
 - `GET/POST /api/strategies/:id/runs` lists or queues paper/backtest validation runs; a worker will process queued runs in a later slice.
 
+Queued runs are claimed atomically through `claim_next_validation_run()` by a separate worker process. The worker contract is documented in `workers/validation/README.md`; it never places live Binance orders.
+
 ## Safety boundary
 
 Live trading must remain disabled until tenant isolation, encrypted API credentials, paper-trading validation, risk limits, reconciliation, audit logs, and an emergency kill switch are implemented and tested.

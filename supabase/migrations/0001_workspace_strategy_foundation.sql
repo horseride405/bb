@@ -182,3 +182,28 @@ $$;
 
 revoke execute on function public.create_workspace(text, text) from public;
 grant execute on function public.create_workspace(text, text) to authenticated;
+
+create or replace function public.claim_next_validation_run()
+returns setof public.strategy_runs
+language sql
+security definer
+set search_path = public
+as $$
+  with next_run as (
+    select id
+    from public.strategy_runs
+    where status = 'queued'
+    order by created_at asc
+    for update skip locked
+    limit 1
+  )
+  update public.strategy_runs as runs
+  set status = 'running',
+      started_at = now()
+  from next_run
+  where runs.id = next_run.id
+  returning runs.*;
+$$;
+
+revoke execute on function public.claim_next_validation_run() from public;
+grant execute on function public.claim_next_validation_run() to service_role;

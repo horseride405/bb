@@ -1,0 +1,22 @@
+# Validation worker contract
+
+The validation worker is a separate long-running process. It must not run inside a Vercel request or a browser session.
+
+## Queue lifecycle
+
+1. Call `claim_next_validation_run()` with a server-only Supabase service-role client.
+2. The database atomically changes one `queued` run to `running`, preventing duplicate claims across workers.
+3. Load the strategy configuration and the requested `parameters`.
+4. Use the run type to select the paper-trading or historical-data engine.
+5. Persist either metrics in `results` and `completed_at`, or a safe diagnostic in `error_message` with `failed` status.
+
+The worker must be idempotent, preserve the tenant and strategy IDs from the claimed row, and never place Binance orders. Live execution requires a separate risk-approved execution service and is intentionally outside this contract.
+
+## Required environment
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+```
+
+The service-role key belongs only in the worker deployment secret store. It must never be included in browser bundles, request payloads, logs, or repository files.

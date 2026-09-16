@@ -3,6 +3,7 @@ import { runHistoricalBacktest } from "@/lib/validation/historical-backtest";
 import { reviewBacktestRisk } from "@/lib/validation/risk-gate";
 import type { StrategyTemplate } from "@/lib/validation/signals";
 import { createServiceClient } from "@/lib/supabase/service";
+import { runPaperValidation } from "@/workers/validation/paper-runner";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type WorkerClient = SupabaseClient<Database>;
@@ -38,10 +39,6 @@ export async function processNextValidationRun(client: WorkerClient = createServ
   if (!run) return null;
 
   try {
-    if (run.run_type === "paper") {
-      throw new Error("Paper-trading worker is not implemented; run remains safely failed");
-    }
-
     const [{ data: strategy, error: strategyError }, { data: riskPolicy, error: riskError }] = await Promise.all([
       client.from("strategies").select("config").eq("id", run.strategy_id).single(),
       client.from("risk_policies").select("max_leverage, max_position_notional, max_drawdown_pct").eq("workspace_id", run.workspace_id).single(),
@@ -51,6 +48,30 @@ export async function processNextValidationRun(client: WorkerClient = createServ
 
     const parameters = recordFromJson(run.parameters, "Run parameters");
     const config = recordFromJson(strategy.config, "Strategy config");
+    if (run.run_type === "paper") {
+      const result = await runPaperValidation({
+        symbol: String(parameters.symbol),
+        interval: String(parameters.interval),
+        durationMs: numberValue(parameters, "durationMs"),
+        initialEquity: numberValue(parameters, "initialEquity"),
+        feeRateBps: numberValue(parameters, "feeRateBps"),
+        slippageBps: numberValue(parameters, "slippageBps"),
+        maxLeverage: riskPolicy.max_leverage,
+        maxPositionNotional: riskPolicy.max_position_notional,
+        template: templateValue(config),
+      });
+      const riskReview = reviewBacktestRisk(result.metrics, {
+        maxDrawdownPct: riskPolicy.max_drawdown_pct,
+      });
+      const completedResult = { ...result, riskReview };
+      const { error: completionError } = await client.rpc("complete_validation_run", {
+        run_id: run.id,
+        run_results: completedResult as unknown as Json,
+      });
+      if (completionError) throw new Error(`Unable to complete validation run: ${completionError.message}`);
+      return { runId: run.id, status: "completed" as const, result: completedResult };
+    }
+
     const result = await runHistoricalBacktest({
       symbol: String(parameters.symbol),
       interval: String(parameters.interval),

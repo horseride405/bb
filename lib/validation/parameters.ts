@@ -9,6 +9,7 @@ export type ValidationParameters = {
   initialEquity: number;
   feeRateBps: number;
   slippageBps: number;
+  durationMs?: number;
   startTime?: number;
   endTime?: number;
 };
@@ -56,6 +57,8 @@ export function parseValidationParameters(runType: "paper" | "backtest", input: 
     }
     parameters.startTime = startTime;
     parameters.endTime = endTime;
+  } else {
+    parameters.durationMs = numberField(record.durationMs ?? 60_000, "durationMs", 1_000, 24 * 60 * 60 * 1_000);
   }
 
   return parameters as unknown as Json;

@@ -27,6 +27,8 @@ import { validateSecretReference } from "@/workers/execution/secret-manager";
 import { evaluateManualEnablement } from "@/workers/execution/enablement";
 import { createBinanceAccountVerifier } from "@/workers/execution/binance-account-verifier";
 import { createBinanceReconciliationClient } from "@/workers/execution/binance-reconciliation";
+import { runFailureInjectionSuite } from "@/workers/execution/failure-injection";
+import { validateProductionApproval } from "@/workers/execution/production-approval";
 import { evaluateEntitlement, getPlanEntitlements } from "@/lib/billing/entitlements";
 import { assertEntitledUsage, getCurrentUsagePeriod } from "@/lib/billing/usage";
 import { canInviteRole } from "@/lib/team/invitations";
@@ -497,6 +499,36 @@ describe("Phase 2 execution safety", () => {
       });
     expect(requests[0]).toContain("testnet.binancefuture.com/fapi/v2/account?");
     expect(requests[1]).toContain("testnet.binancefuture.com/fapi/v2/positionRisk?");
+  });
+
+  it("requires every failure-injection scenario to remain blocked", async () => {
+    const report = await runFailureInjectionSuite(async (scenario) => ({
+      blocked: true,
+      detail: `${scenario} remained blocked`,
+    }));
+    expect(report.passed).toBe(true);
+    expect(report.results).toHaveLength(7);
+  });
+
+  it("validates an admin production approval against evidence and operating limits", () => {
+    expect(validateProductionApproval({
+      approvedByUserId: "admin",
+      approvedAt: 100,
+      expiresAt: 1_000,
+      evidenceId: "evidence-1",
+      maxPositionNotional: 10_000,
+      emergencyContact: "ops@example.com",
+      now: 200,
+    })).toEqual({ valid: true, errors: [] });
+    expect(validateProductionApproval({
+      approvedByUserId: "",
+      approvedAt: 100,
+      expiresAt: 1_000,
+      evidenceId: "",
+      maxPositionNotional: 0,
+      emergencyContact: "",
+      now: 200,
+    }).valid).toBe(false);
   });
 
   it("never enables production execution through the manual enablement guard", () => {

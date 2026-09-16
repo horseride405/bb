@@ -31,6 +31,23 @@ resolves credentials through the injected `SecretReferenceResolver`, never
 accepts credentials from a browser request, and does not submit orders. Use
 testnet first and keep withdrawal permission disabled.
 
+Before any production approval, run the failure-injection suite through the
+deployed worker using `runFailureInjectionSuite()`. The deployment harness must
+prove that each of these remains blocked without creating an exchange order:
+
+- reconciliation timeout
+- stale account or position state
+- duplicate execution intent
+- exchange order rejection
+- partial fill
+- worker restart
+- emergency stop
+
+Store the resulting report identifier with the workspace approval. The approval
+record must identify the approving admin, expiry time, evidence identifier,
+maximum position notional, and an emergency contact. Missing or expired approval
+data must keep live enablement blocked.
+
 Use one worker instance initially, configure automatic restart on process failure,
 and use the platform's process supervisor for liveness. The worker does not expose
 an HTTP health endpoint; liveness must not be inferred from a Vercel request or

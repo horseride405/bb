@@ -23,6 +23,7 @@ import { canCancelExecutionIntent } from "@/workers/execution/intent-preflight";
 import { createDisabledExecutionAdapter } from "@/workers/execution/adapter";
 import { validateSecretReference } from "@/workers/execution/secret-manager";
 import { evaluateManualEnablement } from "@/workers/execution/enablement";
+import { createBinanceAccountVerifier } from "@/workers/execution/binance-account-verifier";
 import { evaluateEntitlement, getPlanEntitlements } from "@/lib/billing/entitlements";
 import { assertEntitledUsage, getCurrentUsagePeriod } from "@/lib/billing/usage";
 import { canInviteRole } from "@/lib/team/invitations";
@@ -430,6 +431,24 @@ describe("Phase 2 execution safety", () => {
     })).not.toThrow();
     expect(() => validateSecretReference({ provider: "", reference: "x" }))
       .toThrow("Secret-manager reference is required");
+  });
+
+  it("verifies Binance account credentials without submitting an order", async () => {
+    let requestUrl = "";
+    const verifier = createBinanceAccountVerifier(
+      {
+        async resolve() {
+          return { apiKey: "test-key", apiSecret: "test-secret" };
+        },
+      },
+      async (input) => {
+        requestUrl = String(input);
+        return new Response("{}", { status: 200 });
+      },
+    );
+    await verifier.verify({ environment: "testnet", secretReference: "testnet-ref" });
+    expect(requestUrl).toContain("https://testnet.binancefuture.com/fapi/v2/account?");
+    expect(requestUrl).toContain("signature=");
   });
 
   it("never enables production execution through the manual enablement guard", () => {

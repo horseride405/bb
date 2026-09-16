@@ -25,6 +25,12 @@ submission remains disabled. A future execution worker must be deployed
 separately with an approved secret-manager binding, reconciliation, idempotency,
 failure-injection evidence, and explicit production approval.
 
+The repository now includes a worker-only `createBinanceAccountVerifier()` for
+signed account-health checks against Binance Futures testnet or mainnet. It
+resolves credentials through the injected `SecretReferenceResolver`, never
+accepts credentials from a browser request, and does not submit orders. Use
+testnet first and keep withdrawal permission disabled.
+
 Use one worker instance initially, configure automatic restart on process failure,
 and use the platform's process supervisor for liveness. The worker does not expose
 an HTTP health endpoint; liveness must not be inferred from a Vercel request or

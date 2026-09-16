@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import WorkspaceShell from "@/app/components/workspace-shell";
 import { createClient } from "@/lib/supabase/server";
 
 type StrategyRow = {
@@ -69,21 +70,7 @@ export default async function Home() {
   ];
 
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">A</span><span>ApexPilot</span></div>
-        <nav aria-label="Main navigation">
-          <Link className="nav-item active" href="/"><span>◈</span> Overview</Link>
-          <Link className="nav-item" href="/strategies"><span>⌁</span> Strategies</Link>
-          <Link className="nav-item" href="/validation"><span>◌</span> Backtests</Link>
-          <Link className="nav-item" href="/validation"><span>↗</span> Paper trading</Link>
-          <Link className="nav-item" href="/strategies"><span>⚙</span> Risk controls</Link>
-          <Link className="nav-item" href="/live"><span>◉</span> Live controls</Link>
-        </nav>
-        <div className="sidebar-footer"><span><span className="status-dot" /> Live execution locked</span><button className="tenant-switcher">{workspace?.name ?? "No workspace"} <span>⌄</span></button></div>
-      </aside>
-
-      <section className="content">
+      <WorkspaceShell active="overview" status="Live execution locked" workspaceName={workspace?.name ?? "No workspace"}>
         <header className="topbar">
           <div><p className="eyebrow">{workspace?.name ?? "Workspace"} / Overview</p><h1>Welcome back{user.email ? `, ${user.email.split("@")[0]}` : ""}</h1></div>
           <div className="topbar-actions"><div className="avatar">{(user.email?.[0] ?? "U").toUpperCase()}</div></div>
@@ -100,7 +87,6 @@ export default async function Home() {
           <article className="panel"><div className="panel-heading"><div><p className="eyebrow">Validation pipeline</p><h2>Evidence before execution</h2></div><span className="step-count">{completedRuns.length} completed</span></div><p className="panel-copy">Run historical and paper validation before requesting any controlled-live review.</p><Link className="text-button" href="/validation">Open validation center →</Link></article>
           <article className="panel risk-panel"><div className="panel-heading"><div><p className="eyebrow">Risk monitor</p><h2>Fail-closed controls</h2></div><span className="healthy-badge">Locked</span></div><div className="risk-row"><span>Live submission</span><strong>Disabled</strong></div><div className="risk-row"><span>Workspace data</span><strong>{workspace ? "Connected" : "Not configured"}</strong></div><div className="risk-row"><span>Completed runs</span><strong>{completedRuns.length}</strong></div></article>
         </section>
-      </section>
-    </main>
+      </WorkspaceShell>
   );
 }

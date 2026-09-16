@@ -55,6 +55,7 @@ export async function PATCH(request: Request) {
     "max_open_positions",
     "min_liquidation_distance_pct",
     "max_trades_per_hour",
+    "min_trade_interval_seconds",
   ] as const;
   const booleanFields = ["kill_switch_active"] as const;
   const updates: Partial<

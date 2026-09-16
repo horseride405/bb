@@ -13,6 +13,7 @@ type RiskInput = {
   concentration_exposure_notional?: unknown;
   trades_in_window?: unknown;
   window_hours?: unknown;
+  seconds_since_last_trade?: unknown;
   mark_price?: unknown;
   liquidation_price?: unknown;
 };
@@ -77,6 +78,8 @@ export async function POST(request: Request) {
       (typeof body.trades_in_window !== "number" || !Number.isFinite(body.trades_in_window))) ||
     (body.window_hours !== undefined &&
       (typeof body.window_hours !== "number" || !Number.isFinite(body.window_hours))) ||
+    (body.seconds_since_last_trade !== undefined &&
+      (typeof body.seconds_since_last_trade !== "number" || !Number.isFinite(body.seconds_since_last_trade))) ||
     body.leverage < 0 ||
     body.position_notional < 0 ||
     body.daily_loss_pct < 0 ||
@@ -85,6 +88,7 @@ export async function POST(request: Request) {
     || (typeof body.concentration_exposure_notional === "number" && body.concentration_exposure_notional < 0)
     || (typeof body.trades_in_window === "number" && body.trades_in_window < 0)
     || (typeof body.window_hours === "number" && body.window_hours <= 0)
+    || (typeof body.seconds_since_last_trade === "number" && body.seconds_since_last_trade < 0)
   ) {
     return NextResponse.json({ error: "Risk inputs must be finite and non-negative" }, { status: 400 });
   }
@@ -127,6 +131,12 @@ export async function POST(request: Request) {
   if (tradeFrequencyPerHour !== null && tradeFrequencyPerHour > policy.max_trades_per_hour) {
     violations.push("trade_frequency_exceeds_limit");
   }
+  if (
+    typeof body.seconds_since_last_trade === "number" &&
+    body.seconds_since_last_trade < policy.min_trade_interval_seconds
+  ) {
+    violations.push("trade_cooldown_active");
+  }
   let liquidationDistancePct: number | null = null;
   if (hasLiquidationInputs) {
     liquidationDistancePct =
@@ -149,6 +159,8 @@ export async function POST(request: Request) {
     max_gross_exposure_notional: maxGrossExposureNotional,
     trade_frequency_per_hour: tradeFrequencyPerHour,
     max_trades_per_hour: policy.max_trades_per_hour,
+    seconds_since_last_trade: body.seconds_since_last_trade ?? null,
+    min_trade_interval_seconds: policy.min_trade_interval_seconds,
     kill_switch_active: policy.kill_switch_active,
     violations,
   });

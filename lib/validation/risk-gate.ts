@@ -4,6 +4,7 @@ export type BacktestRiskPolicy = {
   maxDailyLossPct: number;
   maxDrawdownPct: number;
   maxTradesPerHour: number;
+  minTradeIntervalSeconds: number;
 };
 
 export type RiskReview = {
@@ -13,11 +14,13 @@ export type RiskReview = {
     maxDailyLossPct: number;
     maxDrawdownPct: number;
     tradesPerHour: number;
+    minimumTradeIntervalSeconds: number;
   };
   limits: {
     maxDailyLossPct: number;
     maxDrawdownPct: number;
     tradesPerHour: number;
+    minimumTradeIntervalSeconds: number;
   };
 };
 
@@ -52,6 +55,7 @@ export function reviewBacktestRisk(
     times: [],
   },
   durationMs?: number,
+  trades: Array<{ entryTime: number }> = [],
 ): RiskReview {
   const maxDailyLossPct = calculateMaxDailyLossPct(equity.initialEquity, equity.curve, equity.times);
   const violations = [];
@@ -72,15 +76,38 @@ export function reviewBacktestRisk(
       `Trade frequency ${tradesPerHour.toFixed(2)}/hour exceeds the ${policy.maxTradesPerHour.toFixed(2)}/hour workspace limit`,
     );
   }
+  let minimumTradeIntervalSeconds = Number.POSITIVE_INFINITY;
+  const sortedEntryTimes = trades.map((trade) => trade.entryTime).sort((left, right) => left - right);
+  for (let index = 1; index < sortedEntryTimes.length; index += 1) {
+    minimumTradeIntervalSeconds = Math.min(
+      minimumTradeIntervalSeconds,
+      (sortedEntryTimes[index] - sortedEntryTimes[index - 1]) / 1_000,
+    );
+  }
+  if (!Number.isFinite(minimumTradeIntervalSeconds)) minimumTradeIntervalSeconds = 0;
+  if (
+    sortedEntryTimes.length > 1 &&
+    minimumTradeIntervalSeconds < policy.minTradeIntervalSeconds
+  ) {
+    violations.push(
+      `Minimum trade interval ${minimumTradeIntervalSeconds.toFixed(0)}s is below the ${policy.minTradeIntervalSeconds}s workspace cooldown`,
+    );
+  }
 
   return {
     passed: violations.length === 0,
     violations,
-    observed: { maxDailyLossPct, maxDrawdownPct: metrics.maxDrawdownPct, tradesPerHour },
+    observed: {
+      maxDailyLossPct,
+      maxDrawdownPct: metrics.maxDrawdownPct,
+      tradesPerHour,
+      minimumTradeIntervalSeconds,
+    },
     limits: {
       maxDailyLossPct: policy.maxDailyLossPct,
       maxDrawdownPct: policy.maxDrawdownPct,
       tradesPerHour: policy.maxTradesPerHour,
+      minimumTradeIntervalSeconds: policy.minTradeIntervalSeconds,
     },
   };
 }

@@ -94,6 +94,8 @@ Reconciliation timestamps are validated as finite, non-future values. A stale sn
 
 `persistWorkerHeartbeat()` stores a tenant/account-scoped worker signal with `healthy`, `degraded`, or `offline` classification. Heartbeats are service-role writes, visible as read-only operations data, and must not be treated as execution authorization; missing or stale signals keep the system fail-closed.
 
+Heartbeat persistence uses `retryWithBackoff()` with bounded exponential delays and a finite attempt count. Exhausted retries remain errors; they must transition the worker to a degraded/offline signal rather than being swallowed.
+
 The authenticated `/api/risk/validate` boundary accepts an optional long/short position side plus mark and liquidation prices. When supplied, it calculates direction-aware liquidation distance and rejects positions below `min_liquidation_distance_pct`; validation runs do not infer liquidation prices from candles.
 
 The same boundary accepts gross and concentration exposure notionals. If omitted, gross exposure defaults to `position_notional * open_positions` and concentration exposure defaults to the current position notional. Both are bounded by the conservative policy-derived aggregate cap `max_position_notional * max_open_positions`; this is an explicit gate for one-way net long/short exposure, not a substitute for exchange account reconciliation.

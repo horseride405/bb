@@ -10,6 +10,7 @@ import { reconcileAccountState } from "@/workers/execution/reconciliation";
 import { intentStatusFromGate } from "@/workers/execution/intent-preflight";
 import { evaluateLiveControlReadiness } from "@/workers/execution/readiness";
 import { classifyWorkerHeartbeat } from "@/workers/execution/heartbeat";
+import { retryDelayMs, retryWithBackoff } from "@/workers/execution/retry";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -281,5 +282,25 @@ describe("Phase 2 execution safety", () => {
       consecutiveFailures: 0,
       now: 200_000,
     })).toBe("offline");
+  });
+
+  it("bounds retries and exponential backoff for worker persistence", async () => {
+    expect(retryDelayMs(1, 100, 250)).toBe(100);
+    expect(retryDelayMs(4, 100, 250)).toBe(250);
+    const delays: number[] = [];
+    let attempts = 0;
+    const result = await retryWithBackoff(async () => {
+      attempts += 1;
+      if (attempts < 3) throw new Error("transient");
+      return "ok";
+    }, {
+      maxAttempts: 3,
+      baseDelayMs: 10,
+      maxDelayMs: 100,
+      sleep: async (delayMs) => { delays.push(delayMs); },
+    });
+    expect(result).toBe("ok");
+    expect(attempts).toBe(3);
+    expect(delays).toEqual([10, 20]);
   });
 });

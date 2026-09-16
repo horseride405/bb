@@ -1,6 +1,7 @@
 import type { Database } from "@/lib/supabase/database";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { retryWithBackoff } from "@/workers/execution/retry";
 
 export type WorkerHeartbeatStatus = "healthy" | "degraded" | "offline";
 
@@ -35,6 +36,7 @@ export function classifyWorkerHeartbeat(input: {
   }
   if (
     input.lastSuccessAt === null ||
+    input.lastSuccessAt > now ||
     now - input.observedAt > maxAgeMs ||
     now - input.lastSuccessAt > maxAgeMs * 2
   ) {
@@ -51,17 +53,19 @@ export async function persistWorkerHeartbeat(
     throw new Error("Workspace, account, and worker identifiers are required");
   }
   const status = classifyWorkerHeartbeat(input);
-  const { error } = await client.from("execution_worker_heartbeats").upsert({
-    workspace_id: input.workspaceId,
-    account_connection_id: input.accountConnectionId,
-    worker_name: input.workerName,
-    status,
-    observed_at: new Date(input.observedAt).toISOString(),
-    last_success_at: input.lastSuccessAt ? new Date(input.lastSuccessAt).toISOString() : null,
-    consecutive_failures: input.consecutiveFailures,
-    error_message: input.errorMessage ?? null,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "workspace_id,account_connection_id,worker_name" });
-  if (error) throw new Error(`Unable to persist worker heartbeat: ${error.message}`);
+  await retryWithBackoff(async () => {
+    const { error } = await client.from("execution_worker_heartbeats").upsert({
+      workspace_id: input.workspaceId,
+      account_connection_id: input.accountConnectionId,
+      worker_name: input.workerName,
+      status,
+      observed_at: new Date(input.observedAt).toISOString(),
+      last_success_at: input.lastSuccessAt ? new Date(input.lastSuccessAt).toISOString() : null,
+      consecutive_failures: input.consecutiveFailures,
+      error_message: input.errorMessage ?? null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "workspace_id,account_connection_id,worker_name" });
+    if (error) throw new Error(`Unable to persist worker heartbeat: ${error.message}`);
+  });
   return status;
 }

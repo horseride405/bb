@@ -26,6 +26,7 @@ import { createDisabledExecutionAdapter } from "@/workers/execution/adapter";
 import { validateSecretReference } from "@/workers/execution/secret-manager";
 import { evaluateManualEnablement } from "@/workers/execution/enablement";
 import { createBinanceAccountVerifier } from "@/workers/execution/binance-account-verifier";
+import { createBinanceReconciliationClient } from "@/workers/execution/binance-reconciliation";
 import { evaluateEntitlement, getPlanEntitlements } from "@/lib/billing/entitlements";
 import { assertEntitledUsage, getCurrentUsagePeriod } from "@/lib/billing/usage";
 import { canInviteRole } from "@/lib/team/invitations";
@@ -472,6 +473,30 @@ describe("Phase 2 execution safety", () => {
     await verifier.verify({ environment: "testnet", secretReference: "testnet-ref" });
     expect(requestUrl).toContain("https://testnet.binancefuture.com/fapi/v2/account?");
     expect(requestUrl).toContain("signature=");
+  });
+
+  it("reconciles Binance account balances and non-zero one-way positions", async () => {
+    const requests: string[] = [];
+    const client = createBinanceReconciliationClient(
+      { async resolve() { return { apiKey: "test-key", apiSecret: "test-secret" }; } },
+      async (input) => {
+        requests.push(String(input));
+        return new Response(
+          requests.length === 1
+            ? JSON.stringify({ assets: [{ asset: "USDT", walletBalance: "1000" }] })
+            : JSON.stringify([{ symbol: "BTCUSDT", positionAmt: "0.25", entryPrice: "50000" }, { symbol: "ETHUSDT", positionAmt: "0", entryPrice: "0" }]),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      },
+    );
+    await expect(client.fetchSnapshot({ environment: "testnet", secretReference: "testnet-ref", now: 100 }))
+      .resolves.toEqual({
+        observedAt: 100,
+        balances: { USDT: 1000 },
+        positions: [{ symbol: "BTCUSDT", side: "long", quantity: 0.25, entryPrice: 50000 }],
+      });
+    expect(requests[0]).toContain("testnet.binancefuture.com/fapi/v2/account?");
+    expect(requests[1]).toContain("testnet.binancefuture.com/fapi/v2/positionRisk?");
   });
 
   it("never enables production execution through the manual enablement guard", () => {

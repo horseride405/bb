@@ -1,5 +1,5 @@
 import type { PaperStreamConnector } from "@/lib/validation/paper-session";
-import { intervalDurationMs } from "@/lib/market-data/binance";
+import { intervalDurationMs, type FundingRate } from "@/lib/market-data/binance";
 import { startPaperTradingSession } from "@/lib/validation/paper-session";
 import { createPaperTradingEngine } from "@/lib/validation/paper-trading";
 import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
@@ -15,6 +15,7 @@ export type PaperValidationRequest = {
   maxLeverage: number;
   maxPositionNotional?: number;
   minLiquidationDistancePct?: number;
+  fundingRates?: FundingRate[];
   durationMs: number;
   signal?: AbortSignal;
   connect?: PaperStreamConnector;
@@ -31,6 +32,7 @@ export type PaperValidationResult = {
   equityCurve: number[];
   equityCurveTimes: number[];
   trades: ReturnType<ReturnType<typeof createPaperTradingEngine>["getResult"]>["trades"];
+  fundingRateCount: number;
   metrics: ReturnType<ReturnType<typeof createPaperTradingEngine>["getMetrics"]>;
 };
 
@@ -53,6 +55,7 @@ export async function runPaperValidation(
     maxLeverage: request.maxLeverage,
     maxPositionNotional: request.maxPositionNotional,
     minLiquidationDistancePct: request.minLiquidationDistancePct,
+    fundingRates: request.fundingRates,
     signal: createTemplateSignal(request.template, request.signalOptions),
   });
 

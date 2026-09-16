@@ -1,4 +1,4 @@
-import type { Candle } from "@/lib/market-data/binance";
+import type { Candle, FundingRate } from "@/lib/market-data/binance";
 import {
   type BacktestSignal,
   type BacktestTrade,
@@ -13,6 +13,7 @@ export type PaperTradingOptions = {
   maxPositionNotional?: number;
   maintenanceMarginRate?: number;
   minLiquidationDistancePct?: number;
+  fundingRates?: FundingRate[];
   signal: (candle: Candle, index: number) => BacktestSignal;
 };
 
@@ -32,6 +33,7 @@ type Position = {
   side: "long" | "short";
   liquidationPrice: number;
   entryIndex: number;
+  fundingCost: number;
 };
 
 function validateCandle(candle: Candle, previousCandle?: Candle) {
@@ -39,7 +41,11 @@ function validateCandle(candle: Candle, previousCandle?: Candle) {
     !Number.isFinite(candle.openTime) ||
     !Number.isFinite(candle.closeTime) ||
     !Number.isFinite(candle.close) ||
-    candle.close <= 0
+    candle.close <= 0 ||
+    !Number.isFinite(candle.high) ||
+    !Number.isFinite(candle.low) ||
+    candle.high < candle.low ||
+    candle.low <= 0
   ) {
     throw new Error("Paper candles must contain positive finite close prices and timestamps");
   }
@@ -71,6 +77,14 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
   ) {
     throw new Error("Paper minimum liquidation distance must be positive");
   }
+  for (const rate of options.fundingRates ?? []) {
+    if (!Number.isInteger(rate.fundingTime) || !Number.isFinite(rate.fundingRate)) {
+      throw new Error("Paper funding rates must contain finite timestamps and rates");
+    }
+  }
+  if ((options.fundingRates ?? []).some((rate, index, rates) => index > 0 && rate.fundingTime <= rates[index - 1].fundingTime)) {
+    throw new Error("Paper funding rates must be sorted by funding time");
+  }
 
   const feeRate = options.feeRateBps / 10_000;
   const slippageRate = options.slippageBps / 10_000;
@@ -78,6 +92,7 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
   let position: Position | undefined;
   let lastCandle: Candle | undefined;
   let closed = false;
+  let fundingIndex = 0;
   const equityCurve: number[] = [];
   const equityCurveTimes: number[] = [];
   const trades: BacktestTrade[] = [];
@@ -96,9 +111,9 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
     const exitFee = exitPrice * position.quantity * feeRate;
     cash += grossPnl - exitFee;
     trades.push({
-      pnl: grossPnl - position.entryFee - exitFee,
+      pnl: grossPnl - position.entryFee - exitFee - position.fundingCost,
       fees: position.entryFee + exitFee,
-      funding: 0,
+      funding: position.fundingCost,
       side: position.side,
       entryTime: position.entryTime,
       exitTime: candle.closeTime,
@@ -171,8 +186,20 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
           side: signal,
           liquidationPrice,
           entryIndex: equityCurve.length,
+          fundingCost: 0,
         };
       }
+    }
+
+    while (fundingIndex < (options.fundingRates ?? []).length) {
+      const rate = options.fundingRates?.[fundingIndex];
+      if (!rate || rate.fundingTime > candle.closeTime) break;
+      if (position && rate.fundingTime >= position.entryTime) {
+        const payment = candle.close * position.quantity * rate.fundingRate * (position.side === "long" ? 1 : -1);
+        cash -= payment;
+        position.fundingCost += payment;
+      }
+      fundingIndex += 1;
     }
 
     const equity = position
@@ -201,6 +228,7 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
       equityCurve: [...equityCurve],
       equityCurveTimes: [...equityCurveTimes],
       trades: [...trades],
+      fundingRateCount: options.fundingRates?.length ?? 0,
     }),
     isClosed: () => closed,
   };

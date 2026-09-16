@@ -46,6 +46,7 @@ The first production architecture keeps the dashboard and control plane on Verce
 - Worker fill ingestion rejects invalid/future observations, deduplicates exchange trade IDs, and audits accepted order-state transitions without calling Binance.
 - Order/fill reconciliation rejects impossible aggregate quantities, and preflighted intents have an explicit cancellable lifecycle before any execution adapter exists.
 - Provider-neutral secret-reference and execution-adapter contracts are present, but the default adapter fails closed on every submission; no signed Binance request exists.
+- A final manual-enablement checklist reports missing production prerequisites and always returns disabled; deployment operators must complete provider integration and explicit approval outside this repository before live trading can be considered.
 - Controlled-live readiness is evaluated worker-side with explicit blockers; it is informational only and never authorizes order submission.
 
 Queued runs are claimed atomically through `claim_next_validation_run()` by a separate worker process. `workers/validation/runner.ts` executes supported historical backtests and finalizes runs through service-role-only RPCs; it never places live Binance orders.

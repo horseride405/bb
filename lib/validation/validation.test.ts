@@ -22,6 +22,7 @@ import {
 import { canCancelExecutionIntent } from "@/workers/execution/intent-preflight";
 import { createDisabledExecutionAdapter } from "@/workers/execution/adapter";
 import { validateSecretReference } from "@/workers/execution/secret-manager";
+import { evaluateManualEnablement } from "@/workers/execution/enablement";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -426,5 +427,18 @@ describe("Phase 2 execution safety", () => {
     })).not.toThrow();
     expect(() => validateSecretReference({ provider: "", reference: "x" }))
       .toThrow("Secret-manager reference is required");
+  });
+
+  it("never enables production execution through the manual enablement guard", () => {
+    const result = evaluateManualEnablement({
+      readiness: { ready: true, blockers: [] },
+      secretManagerConfigured: true,
+      exchangeReconciliationConfigured: true,
+      exchangeIdempotencyConfigured: true,
+      signedAdapterApproved: true,
+      failureInjectionPassed: true,
+      explicitProductionApproval: true,
+    });
+    expect(result).toEqual({ enabled: false, blockers: [] });
   });
 });

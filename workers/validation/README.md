@@ -110,6 +110,8 @@ Execution order and fill records are modeled separately from preflight intents. 
 
 The worker now exposes provider-neutral `SecretReferenceResolver` and `ExecutionAdapter` contracts. The default adapter is intentionally fail-closed and throws on every submission; a provider integration must resolve secrets inside the worker, enforce reduce-only orders, persist an intent/order before submission, and reconcile exchange responses before it can replace the disabled adapter.
 
+`evaluateManualEnablement()` is a final fail-closed checklist for deployment operators. It reports missing secret-manager setup, exchange reconciliation, exchange idempotency, signed-adapter approval, failure-injection evidence, or explicit production approval, and always returns `enabled: false`; it cannot turn on live trading.
+
 The authenticated `/api/risk/validate` boundary accepts an optional long/short position side plus mark and liquidation prices. When supplied, it calculates direction-aware liquidation distance and rejects positions below `min_liquidation_distance_pct`; validation runs do not infer liquidation prices from candles.
 
 The same boundary accepts gross and concentration exposure notionals. If omitted, gross exposure defaults to `position_notional * open_positions` and concentration exposure defaults to the current position notional. Both are bounded by the conservative policy-derived aggregate cap `max_position_notional * max_open_positions`; this is an explicit gate for one-way net long/short exposure, not a substitute for exchange account reconciliation.

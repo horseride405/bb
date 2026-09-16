@@ -1,6 +1,6 @@
 import { fetchBinanceCandles, maxHistoricalRangeMs, type Candle } from "@/lib/market-data/binance";
 import { runBacktest, type BacktestResult } from "@/lib/validation/backtest";
-import { createTemplateSignal, type StrategyTemplate } from "@/lib/validation/signals";
+import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
 
 export type HistoricalBacktestRequest = {
   symbol: string;
@@ -13,6 +13,7 @@ export type HistoricalBacktestRequest = {
   maxLeverage: number;
   maxPositionNotional?: number;
   template: StrategyTemplate;
+  signalOptions?: SignalOptions;
 };
 
 export type HistoricalBacktestResult = BacktestResult & {
@@ -64,7 +65,7 @@ export async function runHistoricalBacktest(
     slippageBps: request.slippageBps,
     maxLeverage: request.maxLeverage,
     maxPositionNotional: request.maxPositionNotional,
-    signal: createTemplateSignal(request.template),
+    signal: createTemplateSignal(request.template, request.signalOptions),
   });
 
   return {

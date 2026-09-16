@@ -24,6 +24,7 @@ const templates = [
 ];
 
 type Mode = "paper" | "backtest";
+type PositionMode = "bidirectional" | "long-only" | "short-only";
 
 export default function StrategyBuilder() {
   const [templateId, setTemplateId] = useState("momentum");
@@ -32,6 +33,7 @@ export default function StrategyBuilder() {
   const [symbol, setSymbol] = useState("BTCUSDT");
   const [interval, setInterval] = useState("15m");
   const [leverage, setLeverage] = useState("3");
+  const [positionMode, setPositionMode] = useState<PositionMode>("bidirectional");
   const [workspaceId, setWorkspaceId] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
   const [saved, setSaved] = useState(false);
@@ -94,6 +96,7 @@ export default function StrategyBuilder() {
             symbol,
             interval,
             maxLeverage: Number(leverage),
+            positionMode,
           },
         }),
       });
@@ -210,6 +213,14 @@ export default function StrategyBuilder() {
                 <option value="10">10x</option>
               </select>
             </label>
+            <label>
+              Position direction
+              <select value={positionMode} onChange={(event) => { setPositionMode(event.target.value as PositionMode); setSaved(false); }}>
+                <option value="bidirectional">Long + short</option>
+                <option value="long-only">Long only</option>
+                <option value="short-only">Short only</option>
+              </select>
+            </label>
           </div>
           <div className="selected-signal">
             <span className="template-icon">✦</span>
@@ -269,6 +280,7 @@ export default function StrategyBuilder() {
           <div className="summary-row"><span>Template</span><strong>{template.name}</strong></div>
           <div className="summary-row"><span>Market</span><strong>{symbol} Perpetual</strong></div>
           <div className="summary-row"><span>Leverage cap</span><strong>{leverage}x</strong></div>
+          <div className="summary-row"><span>Direction</span><strong>{positionMode === "bidirectional" ? "Long + short" : positionMode === "long-only" ? "Long only" : "Short only"}</strong></div>
           <div className="summary-row"><span>Execution</span><strong className="summary-green">{mode === "paper" ? "Paper only" : "Backtest only"}</strong></div>
         </section>
       </aside>

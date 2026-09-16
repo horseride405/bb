@@ -1,7 +1,7 @@
 import type { Json, Database } from "@/lib/supabase/database";
 import { runHistoricalBacktest } from "@/lib/validation/historical-backtest";
 import { reviewBacktestRisk } from "@/lib/validation/risk-gate";
-import type { StrategyTemplate } from "@/lib/validation/signals";
+import type { PositionMode, StrategyTemplate } from "@/lib/validation/signals";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runPaperValidation } from "@/workers/validation/paper-runner";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -31,6 +31,15 @@ function templateValue(record: Record<string, Json | undefined>): StrategyTempla
   return value;
 }
 
+function positionModeValue(record: Record<string, Json | undefined>): PositionMode {
+  const value = record.positionMode;
+  if (value === undefined) return "bidirectional";
+  if (value !== "bidirectional" && value !== "long-only" && value !== "short-only") {
+    throw new Error("Strategy position mode is not supported");
+  }
+  return value;
+}
+
 export async function processNextValidationRun(client: WorkerClient = createServiceClient()) {
   const { data: claimedRuns, error: claimError } = await client.rpc("claim_next_validation_run", {});
   if (claimError) throw new Error(`Unable to claim validation run: ${claimError.message}`);
@@ -48,6 +57,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
 
     const parameters = recordFromJson(run.parameters, "Run parameters");
     const config = recordFromJson(strategy.config, "Strategy config");
+    const signalOptions = { positionMode: positionModeValue(config) };
     if (run.run_type === "paper") {
       const result = await runPaperValidation({
         symbol: String(parameters.symbol),
@@ -59,6 +69,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
         maxLeverage: riskPolicy.max_leverage,
         maxPositionNotional: riskPolicy.max_position_notional,
         template: templateValue(config),
+        signalOptions,
       });
       const riskReview = reviewBacktestRisk(result.metrics, {
         maxDailyLossPct: riskPolicy.max_daily_loss_pct,
@@ -88,6 +99,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
       maxLeverage: riskPolicy.max_leverage,
       maxPositionNotional: riskPolicy.max_position_notional,
       template: templateValue(config),
+      signalOptions,
     });
     const riskReview = reviewBacktestRisk(result.metrics, {
       maxDailyLossPct: riskPolicy.max_daily_loss_pct,

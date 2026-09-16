@@ -2,8 +2,10 @@ import type { Candle } from "@/lib/market-data/binance";
 import type { BacktestSignal } from "@/lib/validation/backtest";
 
 export type StrategyTemplate = "momentum" | "mean-reversion" | "breakout";
+export type PositionMode = "bidirectional" | "long-only" | "short-only";
 
 export type SignalOptions = {
+  positionMode?: PositionMode;
   fastPeriod?: number;
   slowPeriod?: number;
   lookbackPeriod?: number;
@@ -37,9 +39,13 @@ export function createTemplateSignal(
   const slowPeriod = Math.max(fastPeriod + 1, positiveInteger(options.slowPeriod, 20));
   const lookbackPeriod = positiveInteger(options.lookbackPeriod, 20);
   const deviationMultiplier = options.deviationMultiplier ?? 2;
+  const positionMode = options.positionMode ?? "bidirectional";
 
   if (!Number.isFinite(deviationMultiplier) || deviationMultiplier <= 0) {
     throw new Error("Signal deviation multiplier must be positive");
+  }
+  if (!["bidirectional", "long-only", "short-only"].includes(positionMode)) {
+    throw new Error("Signal position mode is not supported");
   }
 
   return (candle) => {
@@ -82,6 +88,8 @@ export function createTemplateSignal(
                 : "flat";
     }
 
+    if (positionMode === "long-only" && signal === "short") signal = "flat";
+    if (positionMode === "short-only" && signal === "long") signal = "flat";
     closes.push(candle.close);
     highs.push(candle.high);
     lows.push(candle.low);

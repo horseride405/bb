@@ -66,6 +66,8 @@ The same boundary accepts gross and concentration exposure notionals. If omitted
 
 Validation risk reviews also enforce the tenant `max_trades_per_hour` policy using completed trade count over the requested paper/backtest window. This catches bidirectional reversal churn before a result can be considered a passing validation.
 
+Workers check `risk_policies.kill_switch_active` after claiming a run and before loading market data. An active switch fails the claimed run explicitly and prevents both paper and historical validation from starting; the same state is returned by `/api/risk/validate` as a blocking violation.
+
 `connectBinanceClosedCandleStream` is the public market-data input boundary for the future paper engine. It emits only closed, normalized candles and returns a cleanup function. It must run in the worker deployment, never in browser code; reconnect policy and paper-position state belong to the paper worker, and this stream never places orders.
 
 `createPaperTradingEngine` provides the in-memory paper-position boundary for that worker. It consumes the stream's closed candles, reuses a deterministic signal callback, models fees/slippage/leverage, and exposes metrics without submitting Binance orders. Persistence, reconnect handling, stale-data checks, and a live-data paper queue remain worker responsibilities.

@@ -104,6 +104,7 @@ export async function POST(request: Request) {
   if (body.position_notional > policy.max_position_notional) violations.push("position_notional_exceeds_limit");
   if (body.daily_loss_pct > policy.max_daily_loss_pct) violations.push("daily_loss_exceeds_limit");
   if (body.open_positions > policy.max_open_positions) violations.push("open_positions_exceeds_limit");
+  if (policy.kill_switch_active) violations.push("workspace_kill_switch_active");
   const maxGrossExposureNotional = policy.max_position_notional * policy.max_open_positions;
   const grossExposureNotional =
     typeof body.gross_exposure_notional === "number"
@@ -148,6 +149,7 @@ export async function POST(request: Request) {
     max_gross_exposure_notional: maxGrossExposureNotional,
     trade_frequency_per_hour: tradeFrequencyPerHour,
     max_trades_per_hour: policy.max_trades_per_hour,
+    kill_switch_active: policy.kill_switch_active,
     violations,
   });
 }

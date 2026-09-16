@@ -50,10 +50,11 @@ export async function processNextValidationRun(client: WorkerClient = createServ
   try {
     const [{ data: strategy, error: strategyError }, { data: riskPolicy, error: riskError }] = await Promise.all([
       client.from("strategies").select("config").eq("id", run.strategy_id).single(),
-      client.from("risk_policies").select("max_leverage, max_position_notional, max_daily_loss_pct, max_drawdown_pct, max_trades_per_hour, min_liquidation_distance_pct").eq("workspace_id", run.workspace_id).single(),
+      client.from("risk_policies").select("max_leverage, max_position_notional, max_daily_loss_pct, max_drawdown_pct, max_trades_per_hour, min_liquidation_distance_pct, kill_switch_active").eq("workspace_id", run.workspace_id).single(),
     ]);
     if (strategyError || !strategy) throw new Error("Unable to load claimed strategy");
     if (riskError || !riskPolicy) throw new Error("Unable to load workspace risk policy");
+    if (riskPolicy.kill_switch_active) throw new Error("Validation blocked by workspace kill switch");
 
     const parameters = recordFromJson(run.parameters, "Run parameters");
     const config = recordFromJson(strategy.config, "Strategy config");

@@ -47,7 +47,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Request body must be valid JSON" }, { status: 400 });
   }
 
-  const allowedFields = [
+  const numericFields = [
     "max_leverage",
     "max_position_notional",
     "max_daily_loss_pct",
@@ -56,17 +56,26 @@ export async function PATCH(request: Request) {
     "min_liquidation_distance_pct",
     "max_trades_per_hour",
   ] as const;
+  const booleanFields = ["kill_switch_active"] as const;
   const updates: Partial<
     Record<
-      (typeof allowedFields)[number],
+      (typeof numericFields)[number],
       number
     >
-  > = {};
+  > & Partial<Record<(typeof booleanFields)[number], boolean>> = {};
 
-  for (const field of allowedFields) {
+  for (const field of numericFields) {
     if (body[field] !== undefined) {
       if (typeof body[field] !== "number" || !Number.isFinite(body[field])) {
         return NextResponse.json({ error: `${field} must be a finite number` }, { status: 400 });
+      }
+      updates[field] = body[field];
+    }
+  }
+  for (const field of booleanFields) {
+    if (body[field] !== undefined) {
+      if (typeof body[field] !== "boolean") {
+        return NextResponse.json({ error: `${field} must be boolean` }, { status: 400 });
       }
       updates[field] = body[field];
     }

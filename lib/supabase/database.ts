@@ -80,6 +80,7 @@ export type Database = {
           max_open_positions: number;
           min_liquidation_distance_pct: number;
           max_trades_per_hour: number;
+          kill_switch_active: boolean;
           live_trading_enabled: boolean;
           created_at: string;
           updated_at: string;
@@ -94,6 +95,7 @@ export type Database = {
           max_open_positions?: number;
           min_liquidation_distance_pct?: number;
           max_trades_per_hour?: number;
+          kill_switch_active?: boolean;
           live_trading_enabled?: boolean;
           created_at?: string;
           updated_at?: string;

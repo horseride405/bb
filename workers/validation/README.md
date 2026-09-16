@@ -106,6 +106,8 @@ Execution order and fill records are modeled separately from preflight intents. 
 
 `persistExecutionFill()` rejects non-finite, non-positive, negative-fee, or future-dated fills and treats an exchange trade-ID conflict as an idempotent replay. `persistExecutionOrderStatus()` audits each accepted lifecycle transition; neither helper calls an exchange API.
 
+`reconcileExecutionOrderFills()` verifies that aggregate fills do not exceed order quantity and match partial/filled statuses. Preflighted intents can be cancelled worker-side before any future execution adapter sees them; terminal cancelled intents cannot be reused.
+
 The authenticated `/api/risk/validate` boundary accepts an optional long/short position side plus mark and liquidation prices. When supplied, it calculates direction-aware liquidation distance and rejects positions below `min_liquidation_distance_pct`; validation runs do not infer liquidation prices from candles.
 
 The same boundary accepts gross and concentration exposure notionals. If omitted, gross exposure defaults to `position_notional * open_positions` and concentration exposure defaults to the current position notional. Both are bounded by the conservative policy-derived aggregate cap `max_position_notional * max_open_positions`; this is an explicit gate for one-way net long/short exposure, not a substitute for exchange account reconciliation.

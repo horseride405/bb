@@ -16,8 +16,10 @@ import { runWorkerSupervisor } from "@/workers/execution/supervisor";
 import {
   assertExecutionOrderTransition,
   canTransitionExecutionOrder,
+  reconcileExecutionOrderFills,
   validateExecutionFillInput,
 } from "@/workers/execution/order-state";
+import { canCancelExecutionIntent } from "@/workers/execution/intent-preflight";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -387,5 +389,23 @@ describe("Phase 2 execution safety", () => {
       executedAt: 101,
       now: 100,
     })).toThrow("Execution fill contains invalid values");
+  });
+
+  it("blocks inconsistent order fill totals and terminal intent reuse", () => {
+    expect(reconcileExecutionOrderFills({
+      orderQuantity: 10,
+      filledQuantity: 11,
+      status: "filled",
+    })).toEqual({
+      status: "mismatch",
+      differences: ["filled_quantity_exceeds_order"],
+    });
+    expect(reconcileExecutionOrderFills({
+      orderQuantity: 10,
+      filledQuantity: 4,
+      status: "partially_filled",
+    }).status).toBe("healthy");
+    expect(canCancelExecutionIntent("preflighted")).toBe(true);
+    expect(canCancelExecutionIntent("cancelled")).toBe(false);
   });
 });

@@ -58,6 +58,43 @@ export function validateExecutionFillInput(input: {
   }
 }
 
+export function reconcileExecutionOrderFills(input: {
+  orderQuantity: number;
+  filledQuantity: number;
+  status: ExecutionOrderStatus;
+}) {
+  const differences: string[] = [];
+  if (
+    !Number.isFinite(input.orderQuantity) ||
+    input.orderQuantity <= 0 ||
+    !Number.isFinite(input.filledQuantity) ||
+    input.filledQuantity < 0
+  ) {
+    return { status: "mismatch" as const, differences: ["invalid_fill_totals"] };
+  }
+  if (input.filledQuantity > input.orderQuantity + 1e-8) {
+    differences.push("filled_quantity_exceeds_order");
+  }
+  if (
+    (input.status === "pending" || input.status === "submitted") &&
+    input.filledQuantity > 1e-8
+  ) {
+    differences.push("unexpected_fills_for_unfilled_order");
+  }
+  if (input.status === "partially_filled" &&
+    (input.filledQuantity <= 1e-8 || input.filledQuantity >= input.orderQuantity - 1e-8)) {
+    differences.push("partial_status_quantity_mismatch");
+  }
+  if (input.status === "filled" &&
+    input.filledQuantity < input.orderQuantity - 1e-8) {
+    differences.push("filled_status_quantity_mismatch");
+  }
+  return {
+    status: differences.length === 0 ? "healthy" as const : "mismatch" as const,
+    differences,
+  };
+}
+
 type WorkerClient = SupabaseClient<Database>;
 
 export async function persistExecutionOrderStatus(

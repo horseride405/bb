@@ -5,6 +5,7 @@ import {
 } from "@/lib/execution/live-gate";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { recordWorkerAuditEvent } from "@/workers/execution/audit";
 
 type WorkerClient = SupabaseClient<Database>;
 
@@ -31,6 +32,40 @@ export type ExecutionIntentPreflightResult = {
 
 export function intentStatusFromGate(allowed: boolean): "blocked" | "preflighted" {
   return allowed ? "preflighted" : "blocked";
+}
+
+export function canCancelExecutionIntent(status: "pending" | "blocked" | "preflighted" | "cancelled") {
+  return status === "pending" || status === "blocked" || status === "preflighted";
+}
+
+export async function cancelExecutionIntent(
+  input: { intentId: string; workspaceId: string },
+  client: WorkerClient = createServiceClient(),
+) {
+  const { data: intent, error: lookupError } = await client
+    .from("execution_intents")
+    .select("status")
+    .eq("id", input.intentId)
+    .eq("workspace_id", input.workspaceId)
+    .single();
+  if (lookupError || !intent) throw new Error("Execution intent not found");
+  if (!canCancelExecutionIntent(intent.status)) {
+    throw new Error("Execution intent cannot be cancelled");
+  }
+  const { error } = await client
+    .from("execution_intents")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", input.intentId)
+    .eq("workspace_id", input.workspaceId)
+    .eq("status", intent.status);
+  if (error) throw new Error(`Unable to cancel execution intent: ${error.message}`);
+  await recordWorkerAuditEvent(client, {
+    workspaceId: input.workspaceId,
+    eventType: "execution_intent_cancelled",
+    resourceType: "execution_intent",
+    resourceId: input.intentId,
+    metadata: { previous_status: intent.status },
+  });
 }
 
 export async function preflightAndPersistExecutionIntent(

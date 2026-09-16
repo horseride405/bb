@@ -88,6 +88,8 @@ Approval grants, approval revocations, and emergency-stop changes are recorded t
 
 Database triggers reject approvals, reconciliation snapshots, and execution intents whose strategy, account, and workspace IDs do not agree. This is an additional database-side tenant boundary; worker and API callers must still pass the correct workspace IDs and treat any consistency error as a blocking failure.
 
+`evaluateLiveControlReadiness()` provides a worker-safe control-plane readiness summary for an account/strategy pair. It reports missing enablement, active stops, unverified accounts, expired/revoked approvals, and unhealthy or stale reconciliation; it is informational and does not authorize order submission.
+
 The authenticated `/api/risk/validate` boundary accepts an optional long/short position side plus mark and liquidation prices. When supplied, it calculates direction-aware liquidation distance and rejects positions below `min_liquidation_distance_pct`; validation runs do not infer liquidation prices from candles.
 
 The same boundary accepts gross and concentration exposure notionals. If omitted, gross exposure defaults to `position_notional * open_positions` and concentration exposure defaults to the current position notional. Both are bounded by the conservative policy-derived aggregate cap `max_position_notional * max_open_positions`; this is an explicit gate for one-way net long/short exposure, not a substitute for exchange account reconciliation.

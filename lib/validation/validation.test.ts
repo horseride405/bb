@@ -8,6 +8,7 @@ import { reviewBacktestRisk } from "@/lib/validation/risk-gate";
 import { validateTrailingExitOptions } from "@/lib/validation/trailing-exits";
 import { reconcileAccountState } from "@/workers/execution/reconciliation";
 import { intentStatusFromGate } from "@/workers/execution/intent-preflight";
+import { evaluateLiveControlReadiness } from "@/workers/execution/readiness";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -210,6 +211,34 @@ describe("Phase 2 execution safety", () => {
     expect(result.differences).toEqual(expect.arrayContaining([
       "position_mismatch:BTCUSDT:long",
       "unexpected_observed_position:ETHUSDT:short",
+    ]));
+  });
+
+  it("reports every control-plane readiness blocker without authorizing orders", () => {
+    const result = evaluateLiveControlReadiness({
+      liveTradingEnabled: false,
+      emergencyStopActive: true,
+      killSwitchActive: true,
+      accountStatus: "pending",
+      lastVerifiedAt: null,
+      approvalExpiresAt: null,
+      approvalRevokedAt: 2_000,
+      reconciliationStatus: "mismatch",
+      reconciliationObservedAt: 0,
+      now: 120_000,
+    });
+
+    expect(result.ready).toBe(false);
+    expect(result.blockers).toEqual(expect.arrayContaining([
+      "live_trading_disabled",
+      "live_emergency_stop_active",
+      "workspace_kill_switch_active",
+      "account_not_connected",
+      "account_not_verified",
+      "live_approval_missing_or_expired",
+      "live_approval_revoked",
+      "reconciliation_not_healthy",
+      "reconciliation_stale",
     ]));
   });
 });

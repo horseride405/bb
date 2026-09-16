@@ -42,6 +42,14 @@ type Operations = {
     status: string;
     error_message: string | null;
   }>;
+  audit: Array<{
+    id: string;
+    event_type: string;
+    resource_type: string;
+    resource_id: string | null;
+    metadata: Record<string, unknown>;
+    created_at: string;
+  }>;
 };
 
 type State = "loading" | "ready" | "auth" | "error";
@@ -176,6 +184,25 @@ export default function LiveOperationsDashboard() {
             ))}
           </div>
         </article>
+      </section>
+
+      <section className="panel">
+        <div className="panel-heading">
+          <div><p className="eyebrow">Immutable control history</p><h2>{operations.audit.length} recent events</h2></div>
+          <span className="step-count">Tenant scoped</span>
+        </div>
+        <div className="run-list">
+          {operations.audit.length === 0 && <div className="empty-state"><span className="empty-icon">◌</span><p>No controlled-live audit events recorded.</p></div>}
+          {operations.audit.slice(0, 8).map((event) => (
+            <div className="run-entry" key={event.id}>
+              <div className="run-row">
+                <span className="run-type run-paper">{event.event_type.replaceAll("_", " ")}</span>
+                <strong>{event.resource_type}{event.resource_id ? ` · ${event.resource_id.slice(0, 8)}` : ""}</strong>
+                <span>{new Date(event.created_at).toLocaleString()}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   );

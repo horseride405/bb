@@ -70,6 +70,8 @@ Completed backtests and paper sessions persist timestamped equity curves and clo
 
 The validation dashboard shows exit-reason counts and recent trade reasons so strategy behavior can be audited instead of inferred from aggregate P&L.
 
+Completed validation details can be exported from the dashboard as the exact worker-produced JSON result or a CSV of closed trades. Exports are browser downloads of already-authorized tenant results; they do not fetch Binance credentials or recompute metrics client-side.
+
 The authenticated `/api/risk/validate` boundary accepts an optional long/short position side plus mark and liquidation prices. When supplied, it calculates direction-aware liquidation distance and rejects positions below `min_liquidation_distance_pct`; validation runs do not infer liquidation prices from candles.
 
 The same boundary accepts gross and concentration exposure notionals. If omitted, gross exposure defaults to `position_notional * open_positions` and concentration exposure defaults to the current position notional. Both are bounded by the conservative policy-derived aggregate cap `max_position_notional * max_open_positions`; this is an explicit gate for one-way net long/short exposure, not a substitute for exchange account reconciliation.
@@ -89,3 +91,14 @@ Workers check `risk_policies.kill_switch_active` after claiming a run and before
 `runPaperValidation` is the bounded worker-side orchestration helper used by the queue worker. It selects the stored template signal, runs a finite live-data session, returns versioned stream metrics, and fails safely on stream errors, aborts, stale candle gaps, or sessions with no closed candle. It does not authorize live trading or replace reconciliation controls.
 
 `runValidationWorker` is the long-running deployment loop. It repeatedly calls `processNextValidationRun`, backs off when the queue is idle or a transient worker error occurs, and stops through an `AbortSignal`. Run it in the worker deployment, not inside Vercel request handlers; graceful shutdown should abort the loop and allow the current run to reach its own bounded completion or failure path.
+
+## Production operations checklist
+
+- Run one or more worker processes with `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` injected by the deployment secret manager.
+- Keep worker concurrency bounded by the database claim function; never process a run fetched directly from an unclaimed client query.
+- Restart workers on process crashes, but preserve the database run state and inspect failed diagnostics before replaying a queued run.
+- Alert on repeated claim/complete/fail RPC errors, queue age, failed-run rate, stale-candle failures, and unexpected worker restarts.
+- Emit structured operational logs containing run ID, workspace ID, run type, status, duration, and error category; never log service-role keys, Binance credentials, raw request headers, or full tenant payloads.
+- Expose a deployment health signal from the process supervisor or platform. A healthy worker must be able to claim, process, and finalize a bounded run; health must not be inferred from an open HTTP request.
+- On shutdown, stop claiming new work, abort the current bounded session, and allow its terminal failure path to complete before the process exits.
+- Keep live order execution disabled until a separate execution service adds encrypted tenant credentials, reconciliation, reduce-only behavior, manual approval, and emergency shutdown controls.

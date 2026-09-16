@@ -213,6 +213,24 @@ function RunRow({ run }: { run: Run }) {
       {run.status === "completed" && run.results && (
         <details className="run-details">
           <summary>Inspect validation data</summary>
+          <div className="trade-list">
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => downloadResult(run)}
+            >
+              Download result JSON
+            </button>
+            {(run.results.trades?.length ?? 0) > 0 && (
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => downloadTrades(run)}
+              >
+                Download trades CSV
+              </button>
+            )}
+          </div>
           <div className="run-detail-grid">
             <Metric label="Equity points" value={String(run.results.equityCurve?.length ?? 0)} />
             <Metric label="Closed trades" value={String(run.results.trades?.length ?? metrics?.tradeCount ?? 0)} />
@@ -303,6 +321,46 @@ function RunRow({ run }: { run: Run }) {
       {run.status === "failed" && run.error_message && <p className="run-error">{run.error_message}</p>}
     </div>
   );
+}
+
+function downloadResult(run: Run) {
+  if (!run.results) return;
+  downloadFile(
+    `apexpilot-validation-${run.id}.json`,
+    JSON.stringify(run.results, null, 2),
+    "application/json",
+  );
+}
+
+function downloadTrades(run: Run) {
+  const trades = run.results?.trades ?? [];
+  const header = ["side", "entryTime", "exitTime", "pnl", "fees", "exitReason"];
+  const rows = trades.map((trade) => [
+    trade.side,
+    new Date(trade.entryTime).toISOString(),
+    new Date(trade.exitTime).toISOString(),
+    trade.pnl.toFixed(8),
+    trade.fees.toFixed(8),
+    trade.exitReason ?? "signal",
+  ]);
+  downloadFile(
+    `apexpilot-validation-${run.id}-trades.csv`,
+    [header, ...rows].map((row) => row.map(csvValue).join(",")).join("\n"),
+    "text/csv",
+  );
+}
+
+function csvValue(value: string) {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+function downloadFile(filename: string, content: string, type: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function formatExitReason(reason: string) {

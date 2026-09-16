@@ -62,6 +62,8 @@ Completed backtests and paper sessions persist timestamped equity curves and clo
 
 The authenticated `/api/risk/validate` boundary accepts an optional long/short position side plus mark and liquidation prices. When supplied, it calculates direction-aware liquidation distance and rejects positions below `min_liquidation_distance_pct`; validation runs do not infer liquidation prices from candles.
 
+The same boundary accepts gross and concentration exposure notionals. If omitted, gross exposure defaults to `position_notional * open_positions` and concentration exposure defaults to the current position notional. Both are bounded by the conservative policy-derived aggregate cap `max_position_notional * max_open_positions`; this is an explicit gate for one-way net long/short exposure, not a substitute for exchange account reconciliation.
+
 `connectBinanceClosedCandleStream` is the public market-data input boundary for the future paper engine. It emits only closed, normalized candles and returns a cleanup function. It must run in the worker deployment, never in browser code; reconnect policy and paper-position state belong to the paper worker, and this stream never places orders.
 
 `createPaperTradingEngine` provides the in-memory paper-position boundary for that worker. It consumes the stream's closed candles, reuses a deterministic signal callback, models fees/slippage/leverage, and exposes metrics without submitting Binance orders. Persistence, reconnect handling, stale-data checks, and a live-data paper queue remain worker responsibilities.

@@ -9,6 +9,8 @@ type RiskInput = {
   position_notional?: unknown;
   daily_loss_pct?: unknown;
   open_positions?: unknown;
+  gross_exposure_notional?: unknown;
+  concentration_exposure_notional?: unknown;
   mark_price?: unknown;
   liquidation_price?: unknown;
 };
@@ -64,10 +66,17 @@ export async function POST(request: Request) {
     !Number.isFinite(body.position_notional) ||
     !Number.isFinite(body.daily_loss_pct) ||
     !Number.isFinite(body.open_positions) ||
+    (body.gross_exposure_notional !== undefined &&
+      (typeof body.gross_exposure_notional !== "number" || !Number.isFinite(body.gross_exposure_notional))) ||
+    (body.concentration_exposure_notional !== undefined &&
+      (typeof body.concentration_exposure_notional !== "number" ||
+        !Number.isFinite(body.concentration_exposure_notional))) ||
     body.leverage < 0 ||
     body.position_notional < 0 ||
     body.daily_loss_pct < 0 ||
     body.open_positions < 0
+    || (typeof body.gross_exposure_notional === "number" && body.gross_exposure_notional < 0)
+    || (typeof body.concentration_exposure_notional === "number" && body.concentration_exposure_notional < 0)
   ) {
     return NextResponse.json({ error: "Risk inputs must be finite and non-negative" }, { status: 400 });
   }
@@ -87,6 +96,21 @@ export async function POST(request: Request) {
   if (body.position_notional > policy.max_position_notional) violations.push("position_notional_exceeds_limit");
   if (body.daily_loss_pct > policy.max_daily_loss_pct) violations.push("daily_loss_exceeds_limit");
   if (body.open_positions > policy.max_open_positions) violations.push("open_positions_exceeds_limit");
+  const maxGrossExposureNotional = policy.max_position_notional * policy.max_open_positions;
+  const grossExposureNotional =
+    typeof body.gross_exposure_notional === "number"
+      ? body.gross_exposure_notional
+      : body.position_notional * body.open_positions;
+  const concentrationExposureNotional =
+    typeof body.concentration_exposure_notional === "number"
+      ? body.concentration_exposure_notional
+      : body.position_notional;
+  if (grossExposureNotional > maxGrossExposureNotional) {
+    violations.push("gross_exposure_exceeds_limit");
+  }
+  if (concentrationExposureNotional > maxGrossExposureNotional) {
+    violations.push("concentration_exposure_exceeds_limit");
+  }
   let liquidationDistancePct: number | null = null;
   if (hasLiquidationInputs) {
     liquidationDistancePct =
@@ -104,6 +128,9 @@ export async function POST(request: Request) {
     position_side: body.position_side ?? "net",
     liquidation_distance_pct: liquidationDistancePct,
     min_liquidation_distance_pct: policy.min_liquidation_distance_pct,
+    gross_exposure_notional: grossExposureNotional,
+    concentration_exposure_notional: concentrationExposureNotional,
+    max_gross_exposure_notional: maxGrossExposureNotional,
     violations,
   });
 }

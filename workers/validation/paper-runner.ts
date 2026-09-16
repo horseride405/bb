@@ -14,6 +14,7 @@ export type PaperValidationRequest = {
   slippageBps: number;
   maxLeverage: number;
   maxPositionNotional?: number;
+  minLiquidationDistancePct?: number;
   durationMs: number;
   signal?: AbortSignal;
   connect?: PaperStreamConnector;
@@ -51,6 +52,7 @@ export async function runPaperValidation(
     slippageBps: request.slippageBps,
     maxLeverage: request.maxLeverage,
     maxPositionNotional: request.maxPositionNotional,
+    minLiquidationDistancePct: request.minLiquidationDistancePct,
     signal: createTemplateSignal(request.template, request.signalOptions),
   });
 

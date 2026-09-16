@@ -68,6 +68,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
         slippageBps: numberValue(parameters, "slippageBps"),
         maxLeverage: riskPolicy.max_leverage,
         maxPositionNotional: riskPolicy.max_position_notional,
+        minLiquidationDistancePct: riskPolicy.min_liquidation_distance_pct,
         template: templateValue(config),
         signalOptions,
       });

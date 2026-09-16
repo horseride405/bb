@@ -1,4 +1,5 @@
 import type { Candle, FundingRate } from "@/lib/market-data/binance";
+import { validateFundingRates } from "@/lib/validation/funding";
 import { calculateValidationMetrics, type TradeOutcome, type ValidationMetrics } from "@/lib/validation/metrics";
 import {
   createTrailingState,
@@ -147,14 +148,7 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
     position = undefined;
   };
 
-  for (const rate of options.fundingRates ?? []) {
-    if (!Number.isInteger(rate.fundingTime) || !Number.isFinite(rate.fundingRate)) {
-      throw new Error("Backtest funding rates must contain finite timestamps and rates");
-    }
-  }
-  if ((options.fundingRates ?? []).some((rate, index, rates) => index > 0 && rate.fundingTime <= rates[index - 1].fundingTime)) {
-    throw new Error("Backtest funding rates must be sorted by funding time");
-  }
+  validateFundingRates(options.fundingRates ?? []);
 
   for (let index = 0; index < candles.length; index += 1) {
     const candle = candles[index];

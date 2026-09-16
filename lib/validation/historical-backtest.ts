@@ -7,6 +7,7 @@ import {
   type FundingRate,
 } from "@/lib/market-data/binance";
 import { runBacktest, type BacktestResult } from "@/lib/validation/backtest";
+import { validateFundingRates } from "@/lib/validation/funding";
 import { calculateValidationMetrics, type ValidationMetrics } from "@/lib/validation/metrics";
 import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
 import type { TrailingExitOptions } from "@/lib/validation/trailing-exits";
@@ -98,6 +99,10 @@ export async function runHistoricalBacktest(
   if (candles.length < 30) {
     throw new Error("Historical backtest requires at least 30 candles");
   }
+  validateFundingRates(fundingRates, {
+    startTime: request.startTime,
+    endTime: request.endTime,
+  });
   const expectedIntervalMs = intervalDurationMs[request.interval];
   if (!expectedIntervalMs) {
     throw new Error("Historical backtest interval is not supported");

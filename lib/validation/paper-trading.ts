@@ -1,4 +1,5 @@
 import type { Candle, FundingRate } from "@/lib/market-data/binance";
+import { validateFundingRates } from "@/lib/validation/funding";
 import {
   type BacktestSignal,
   type BacktestTrade,
@@ -86,14 +87,7 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
     throw new Error("Paper minimum liquidation distance must be positive");
   }
   validateTrailingExitOptions(options);
-  for (const rate of options.fundingRates ?? []) {
-    if (!Number.isInteger(rate.fundingTime) || !Number.isFinite(rate.fundingRate)) {
-      throw new Error("Paper funding rates must contain finite timestamps and rates");
-    }
-  }
-  if ((options.fundingRates ?? []).some((rate, index, rates) => index > 0 && rate.fundingTime <= rates[index - 1].fundingTime)) {
-    throw new Error("Paper funding rates must be sorted by funding time");
-  }
+  validateFundingRates(options.fundingRates ?? []);
 
   const feeRate = options.feeRateBps / 10_000;
   const slippageRate = options.slippageBps / 10_000;

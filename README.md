@@ -37,6 +37,7 @@ The first production architecture keeps the dashboard and control plane on Verce
 - `GET /api/live/operations` returns tenant-scoped live-control health for the operations dashboard.
 - `GET /api/live/intents` and `GET /api/live/reconciliation` expose tenant-scoped preflight decisions and reconciliation history; neither endpoint can submit orders.
 - `GET /api/live/audit` exposes tenant-scoped immutable control-history events without credential or signed-request payloads.
+- `/api/live/operations` also reports worker heartbeats; stale or offline reconciliation workers remain a blocking operational condition.
 - Controlled-live readiness is evaluated worker-side with explicit blockers; it is informational only and never authorizes order submission.
 
 Queued runs are claimed atomically through `claim_next_validation_run()` by a separate worker process. `workers/validation/runner.ts` executes supported historical backtests and finalizes runs through service-role-only RPCs; it never places live Binance orders.

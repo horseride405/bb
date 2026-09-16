@@ -50,6 +50,16 @@ type Operations = {
     metadata: Record<string, unknown>;
     created_at: string;
   }>;
+  heartbeats: Array<{
+    id: string;
+    account_connection_id: string;
+    worker_name: string;
+    status: string;
+    observed_at: string;
+    last_success_at: string | null;
+    consecutive_failures: number;
+    error_message: string | null;
+  }>;
 };
 
 type State = "loading" | "ready" | "auth" | "error";
@@ -199,6 +209,29 @@ export default function LiveOperationsDashboard() {
                 <span className="run-type run-paper">{event.event_type.replaceAll("_", " ")}</span>
                 <strong>{event.resource_type}{event.resource_id ? ` · ${event.resource_id.slice(0, 8)}` : ""}</strong>
                 <span>{new Date(event.created_at).toLocaleString()}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-heading">
+          <div><p className="eyebrow">Worker heartbeat</p><h2>{operations.heartbeats.length} signals</h2></div>
+          <span className="step-count">Fail-closed monitoring</span>
+        </div>
+        <div className="run-list">
+          {operations.heartbeats.length === 0 && <div className="empty-state"><span className="empty-icon">◌</span><p>No reconciliation worker heartbeat has been recorded.</p></div>}
+          {operations.heartbeats.slice(0, 8).map((heartbeat) => (
+            <div className="run-entry" key={heartbeat.id}>
+              <div className="run-row">
+                <span className={`run-type ${heartbeat.status === "healthy" ? "run-paper" : "run-backtest"}`}>{heartbeat.status}</span>
+                <strong>{heartbeat.worker_name}</strong>
+                <span>{new Date(heartbeat.observed_at).toLocaleString()}</span>
+              </div>
+              <div className="run-error">
+                Failures: {heartbeat.consecutive_failures} · Last success: {heartbeat.last_success_at ? new Date(heartbeat.last_success_at).toLocaleString() : "none"}
+                {heartbeat.error_message ? ` · ${heartbeat.error_message}` : ""}
               </div>
             </div>
           ))}

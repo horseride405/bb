@@ -9,6 +9,7 @@ import { validateTrailingExitOptions } from "@/lib/validation/trailing-exits";
 import { reconcileAccountState } from "@/workers/execution/reconciliation";
 import { intentStatusFromGate } from "@/workers/execution/intent-preflight";
 import { evaluateLiveControlReadiness } from "@/workers/execution/readiness";
+import { classifyWorkerHeartbeat } from "@/workers/execution/heartbeat";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -259,5 +260,26 @@ describe("Phase 2 execution safety", () => {
     });
     expect(stale.status).toBe("stale");
     expect(stale.differences).toContain("reconciliation_stale");
+  });
+
+  it("classifies worker heartbeat degradation and offline state conservatively", () => {
+    expect(classifyWorkerHeartbeat({
+      observedAt: 100_000,
+      lastSuccessAt: 100_000,
+      consecutiveFailures: 0,
+      now: 100_001,
+    })).toBe("healthy");
+    expect(classifyWorkerHeartbeat({
+      observedAt: 100_000,
+      lastSuccessAt: 100_000,
+      consecutiveFailures: 2,
+      now: 100_001,
+    })).toBe("degraded");
+    expect(classifyWorkerHeartbeat({
+      observedAt: 0,
+      lastSuccessAt: 0,
+      consecutiveFailures: 0,
+      now: 200_000,
+    })).toBe("offline");
   });
 });

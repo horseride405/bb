@@ -293,6 +293,36 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["audit_events"]["Insert"]>;
         Relationships: [];
       };
+      execution_worker_heartbeats: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          account_connection_id: string;
+          worker_name: string;
+          status: "healthy" | "degraded" | "offline";
+          observed_at: string;
+          last_success_at: string | null;
+          consecutive_failures: number;
+          error_message: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          account_connection_id: string;
+          worker_name: string;
+          status: "healthy" | "degraded" | "offline";
+          observed_at: string;
+          last_success_at?: string | null;
+          consecutive_failures?: number;
+          error_message?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["execution_worker_heartbeats"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -342,6 +372,7 @@ export type Database = {
       binance_account_status: "pending" | "connected" | "disabled" | "error";
       reconciliation_status: "healthy" | "mismatch" | "stale" | "error";
       execution_intent_status: "pending" | "blocked" | "preflighted" | "cancelled";
+      execution_worker_status: "healthy" | "degraded" | "offline";
     };
     CompositeTypes: Record<string, never>;
   };

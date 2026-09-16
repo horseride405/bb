@@ -11,6 +11,7 @@ import { intentStatusFromGate } from "@/workers/execution/intent-preflight";
 import { evaluateLiveControlReadiness } from "@/workers/execution/readiness";
 import { classifyWorkerHeartbeat } from "@/workers/execution/heartbeat";
 import { retryDelayMs, retryWithBackoff } from "@/workers/execution/retry";
+import { runWorkerCycle } from "@/workers/execution/worker-cycle";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -311,5 +312,26 @@ describe("Phase 2 execution safety", () => {
       consecutiveFailures: 0,
       now: 100_001,
     })).toBe("healthy");
+  });
+
+  it("preserves worker-cycle failures instead of reporting success", async () => {
+    await expect(runWorkerCycle({
+      workspaceId: "workspace",
+      accountConnectionId: "account",
+      workerName: "reconciliation",
+      consecutiveFailures: 1,
+      lastSuccessAt: 100_000,
+      now: () => 100_001,
+      client: {
+        from: (table: string) => table === "execution_worker_heartbeats"
+          ? {
+              select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }) }),
+              upsert: async () => ({ error: null }),
+            }
+          : { insert: async () => ({ error: null }) },
+      } as never,
+    }, async () => {
+      throw new Error("reconciliation failed");
+    })).rejects.toThrow("reconciliation failed");
   });
 });

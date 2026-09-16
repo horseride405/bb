@@ -42,16 +42,16 @@ export default function Home() {
           <Link className="nav-item active" href="/">
             <span>◈</span> Overview
           </Link>
-          <Link className="nav-item" href="/">
+          <Link className="nav-item" href="/strategies">
             <span>⌁</span> Strategies
           </Link>
-          <Link className="nav-item" href="/">
+          <Link className="nav-item" href="/strategies">
             <span>◌</span> Backtests
           </Link>
-          <Link className="nav-item" href="/">
+          <Link className="nav-item" href="/strategies">
             <span>↗</span> Paper trading
           </Link>
-          <Link className="nav-item" href="/">
+          <Link className="nav-item" href="/strategies">
             <span>⚙</span> Risk controls
           </Link>
         </nav>
@@ -97,7 +97,7 @@ export default function Home() {
             <p className="eyebrow">Strategy lab</p>
             <h2>Your strategies</h2>
           </div>
-          <button className="primary-button">+ Create strategy</button>
+          <Link className="primary-button" href="/strategies">+ Create strategy</Link>
         </section>
 
         <section className="strategy-list">

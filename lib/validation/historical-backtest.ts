@@ -44,6 +44,13 @@ export type HistoricalBacktestResult = BacktestResult & {
     outOfSampleCandleCount: number;
     outOfSampleStartTime: number;
     metrics: ValidationMetrics;
+    folds: Array<{
+      index: number;
+      startTime: number;
+      endTime: number;
+      candleCount: number;
+      metrics: ValidationMetrics;
+    }>;
   };
 };
 
@@ -120,6 +127,28 @@ export async function runHistoricalBacktest(
     result.equityCurve.slice(splitIndex - 1),
     outOfSampleTrades,
   );
+  const foldCount = Math.min(3, candles.length - splitIndex);
+  const folds = Array.from({ length: foldCount }, (_, index) => {
+    const foldStartIndex = splitIndex + Math.floor(index * (candles.length - splitIndex) / foldCount);
+    const foldEndIndex = splitIndex + Math.floor((index + 1) * (candles.length - splitIndex) / foldCount) - 1;
+    const foldInitialEquity = result.equityCurve[foldStartIndex - 1] ?? request.initialEquity;
+    const foldStart = candles[foldStartIndex];
+    const foldEnd = candles[foldEndIndex];
+    const foldTrades = result.trades.filter(
+      (trade) => trade.entryTime >= foldStart.openTime && trade.exitTime <= foldEnd.closeTime,
+    );
+    return {
+      index: index + 1,
+      startTime: foldStart.openTime,
+      endTime: foldEnd.closeTime,
+      candleCount: foldEndIndex - foldStartIndex + 1,
+      metrics: calculateValidationMetrics(
+        foldInitialEquity,
+        result.equityCurve.slice(foldStartIndex - 1, foldEndIndex + 1),
+        foldTrades,
+      ),
+    };
+  });
 
   return {
     ...result,
@@ -138,6 +167,7 @@ export async function runHistoricalBacktest(
       outOfSampleCandleCount: candles.length - splitIndex,
       outOfSampleStartTime: outOfSampleStart.openTime,
       metrics: outOfSampleMetrics,
+      folds,
     },
   };
 }

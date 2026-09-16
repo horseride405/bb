@@ -46,7 +46,7 @@ The worker uses `lib/supabase/service.ts`, which disables session persistence an
 
 Metrics must be calculated from actual historical candles or live streamed paper-trading events. The worker must not populate successful results from placeholders or predicted values.
 
-Historical runs also evaluate a chronological out-of-sample holdout (30% by default, configurable from 10% through 50%). The holdout begins at a candle boundary, uses the same deterministic signal and real funding inputs, and reports separate return, drawdown, and trade metrics so in-sample performance is not presented as unseen-data evidence.
+Historical runs also evaluate a chronological out-of-sample holdout (30% by default, configurable from 10% through 50%). The holdout begins at a candle boundary, uses the same deterministic signal and real funding inputs, and reports separate return, drawdown, and trade metrics plus up to three chronological fold summaries so in-sample performance is not presented as unseen-data evidence.
 
 Completed worker results also include `validationConfig`, which records the selected template, position mode, trailing-exit settings, leverage/notional limits, liquidation-distance policy, trade-frequency cap, and entry cooldown used for that run. This makes stored validation evidence reproducible even if the workspace policy or strategy draft changes later.
 

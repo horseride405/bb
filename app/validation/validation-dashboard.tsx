@@ -41,6 +41,13 @@ type WalkForward = {
   outOfSampleCandleCount: number;
   outOfSampleStartTime: number;
   metrics: ResultMetrics;
+  folds: Array<{
+    index: number;
+    startTime: number;
+    endTime: number;
+    candleCount: number;
+    metrics: ResultMetrics;
+  }>;
 };
 type Run = {
   id: string;
@@ -249,6 +256,12 @@ function RunRow({ run }: { run: Run }) {
                 {run.results.walkForward.metrics.maxDrawdownPct.toFixed(2)}% · trades:{" "}
                 {run.results.walkForward.metrics.tradeCount}
               </span>
+              {run.results.walkForward.folds.map((fold) => (
+                <span key={fold.index}>
+                  Fold {fold.index}: {fold.metrics.totalReturnPct.toFixed(2)}% return ·{" "}
+                  {fold.metrics.maxDrawdownPct.toFixed(2)}% drawdown · {fold.metrics.tradeCount} trades
+                </span>
+              ))}
             </div>
           )}
           {Object.keys(exitCounts).length > 0 && (

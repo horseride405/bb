@@ -18,6 +18,8 @@ export type HistoricalBacktestRequest = {
   slippageBps: number;
   maxLeverage: number;
   maxPositionNotional?: number;
+  maintenanceMarginRate?: number;
+  minLiquidationDistancePct?: number;
   template: StrategyTemplate;
   signalOptions?: SignalOptions;
   fundingRates?: FundingRate[];
@@ -82,6 +84,8 @@ export async function runHistoricalBacktest(
     slippageBps: request.slippageBps,
     maxLeverage: request.maxLeverage,
     maxPositionNotional: request.maxPositionNotional,
+    maintenanceMarginRate: request.maintenanceMarginRate,
+    minLiquidationDistancePct: request.minLiquidationDistancePct,
     fundingRates,
     signal: createTemplateSignal(request.template, request.signalOptions),
   });

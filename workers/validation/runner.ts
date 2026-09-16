@@ -50,7 +50,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
   try {
     const [{ data: strategy, error: strategyError }, { data: riskPolicy, error: riskError }] = await Promise.all([
       client.from("strategies").select("config").eq("id", run.strategy_id).single(),
-      client.from("risk_policies").select("max_leverage, max_position_notional, max_daily_loss_pct, max_drawdown_pct").eq("workspace_id", run.workspace_id).single(),
+      client.from("risk_policies").select("max_leverage, max_position_notional, max_daily_loss_pct, max_drawdown_pct, min_liquidation_distance_pct").eq("workspace_id", run.workspace_id).single(),
     ]);
     if (strategyError || !strategy) throw new Error("Unable to load claimed strategy");
     if (riskError || !riskPolicy) throw new Error("Unable to load workspace risk policy");
@@ -98,6 +98,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
       slippageBps: numberValue(parameters, "slippageBps"),
       maxLeverage: riskPolicy.max_leverage,
       maxPositionNotional: riskPolicy.max_position_notional,
+      minLiquidationDistancePct: riskPolicy.min_liquidation_distance_pct,
       template: templateValue(config),
       signalOptions,
     });

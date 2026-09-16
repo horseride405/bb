@@ -85,6 +85,8 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
       entryPrice: position.entryPrice,
       exitPrice,
       quantity: position.quantity,
+      exitReason: "signal",
+      liquidated: false,
     });
     position = undefined;
   };

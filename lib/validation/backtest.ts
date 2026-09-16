@@ -9,6 +9,8 @@ export type BacktestOptions = {
   slippageBps: number;
   maxLeverage: number;
   maxPositionNotional?: number;
+  maintenanceMarginRate?: number;
+  minLiquidationDistancePct?: number;
   fundingRates?: FundingRate[];
   signal: (candle: Candle, index: number) => BacktestSignal;
 };
@@ -20,6 +22,9 @@ export type BacktestTrade = TradeOutcome & {
   entryPrice: number;
   exitPrice: number;
   quantity: number;
+  liquidationPrice?: number;
+  exitReason: "signal" | "end" | "liquidation";
+  liquidated: boolean;
 };
 
 export type BacktestResult = {
@@ -32,8 +37,17 @@ export type BacktestResult = {
 function assertCandles(candles: Candle[]) {
   for (let index = 0; index < candles.length; index += 1) {
     const candle = candles[index];
-    if (!candle || !Number.isFinite(candle.close) || candle.close <= 0 || !Number.isFinite(candle.openTime)) {
-      throw new Error("Backtest candles must contain positive finite close prices");
+    if (
+      !candle ||
+      !Number.isFinite(candle.close) ||
+      candle.close <= 0 ||
+      !Number.isFinite(candle.high) ||
+      !Number.isFinite(candle.low) ||
+      candle.high < candle.low ||
+      candle.low <= 0 ||
+      !Number.isFinite(candle.openTime)
+    ) {
+      throw new Error("Backtest candles must contain valid positive OHLC prices");
     }
     if (index > 0 && candle.openTime <= candles[index - 1].openTime) {
       throw new Error("Backtest candles must be sorted by increasing open time");
@@ -63,6 +77,16 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
   if (!Number.isFinite(options.maxLeverage) || options.maxLeverage < 1) {
     throw new Error("Backtest leverage must be at least 1");
   }
+  const maintenanceMarginRate = options.maintenanceMarginRate ?? 0.005;
+  if (!Number.isFinite(maintenanceMarginRate) || maintenanceMarginRate <= 0 || maintenanceMarginRate >= 1) {
+    throw new Error("Backtest maintenance margin rate must be between 0 and 1");
+  }
+  if (
+    options.minLiquidationDistancePct !== undefined &&
+    (!Number.isFinite(options.minLiquidationDistancePct) || options.minLiquidationDistancePct <= 0)
+  ) {
+    throw new Error("Backtest minimum liquidation distance must be positive");
+  }
 
   const feeRate = options.feeRateBps / 10_000;
   const slippageRate = options.slippageBps / 10_000;
@@ -75,6 +99,8 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
         quantity: number;
         side: "long" | "short";
         fundingCost: number;
+        liquidationPrice: number;
+        entryIndex: number;
       }
     | undefined;
   const equityCurve: number[] = [];
@@ -82,9 +108,15 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
   const trades: BacktestTrade[] = [];
   let fundingIndex = 0;
 
-  const closePosition = (candle: Candle) => {
+  const closePosition = (
+    candle: Candle,
+    forcedExitPrice?: number,
+    exitReason: "signal" | "end" | "liquidation" = "signal",
+  ) => {
     if (!position) return;
-    const exitPrice = candle.close * (position.side === "long" ? 1 - slippageRate : 1 + slippageRate);
+    const exitPrice =
+      forcedExitPrice ??
+      candle.close * (position.side === "long" ? 1 - slippageRate : 1 + slippageRate);
     const grossPnl =
       (exitPrice - position.entryPrice) * position.quantity * (position.side === "long" ? 1 : -1);
     const exitFee = exitPrice * position.quantity * feeRate;
@@ -99,6 +131,9 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
       entryPrice: position.entryPrice,
       exitPrice,
       quantity: position.quantity,
+      liquidationPrice: position.liquidationPrice,
+      exitReason,
+      liquidated: exitReason === "liquidation",
     });
     position = undefined;
   };
@@ -119,19 +154,51 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
       throw new Error("Backtest signal must be long, short, or flat");
     }
 
-    if (position && (signal === "flat" || signal !== position.side)) closePosition(candle);
-    if (!position && signal !== "flat" && index < candles.length - 1) {
+    let liquidatedThisCandle = false;
+    if (
+      position &&
+      index > position.entryIndex &&
+      ((position.side === "long" && candle.low <= position.liquidationPrice) ||
+        (position.side === "short" && candle.high >= position.liquidationPrice))
+    ) {
+      closePosition(candle, position.liquidationPrice, "liquidation");
+      liquidatedThisCandle = true;
+    }
+    if (!liquidatedThisCandle && position && (signal === "flat" || signal !== position.side)) {
+      closePosition(candle);
+    }
+    if (!liquidatedThisCandle && !position && signal !== "flat" && index < candles.length - 1) {
       const availableEquity = Math.max(cash, 0);
       const notional = Math.min(
         availableEquity * options.maxLeverage,
         options.maxPositionNotional ?? Number.POSITIVE_INFINITY,
       );
       const entryPrice = candle.close * (signal === "long" ? 1 + slippageRate : 1 - slippageRate);
+      const liquidationPrice =
+        signal === "long"
+          ? entryPrice * (1 - 1 / options.maxLeverage + maintenanceMarginRate)
+          : entryPrice * (1 + 1 / options.maxLeverage - maintenanceMarginRate);
+      const liquidationDistancePct = (Math.abs(entryPrice - liquidationPrice) / entryPrice) * 100;
+      if (
+        options.minLiquidationDistancePct !== undefined &&
+        liquidationDistancePct < options.minLiquidationDistancePct
+      ) {
+        throw new Error("Backtest liquidation distance is below the workspace policy");
+      }
       const quantity = notional / entryPrice;
       const entryFee = notional * feeRate;
       if (quantity > 0 && entryFee < availableEquity) {
         cash -= entryFee;
-        position = { entryPrice, entryTime: candle.closeTime, entryFee, quantity, side: signal, fundingCost: 0 };
+        position = {
+          entryPrice,
+          entryTime: candle.closeTime,
+          entryFee,
+          quantity,
+          side: signal,
+          fundingCost: 0,
+          liquidationPrice,
+          entryIndex: index,
+        };
       }
     }
 
@@ -154,7 +221,7 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
     equityCurveTimes.push(candle.closeTime);
   }
 
-  closePosition(candles[candles.length - 1]);
+  closePosition(candles[candles.length - 1], undefined, "end");
   equityCurve[equityCurve.length - 1] = cash;
 
   return {

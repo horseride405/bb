@@ -12,6 +12,7 @@ import { evaluateLiveControlReadiness } from "@/workers/execution/readiness";
 import { classifyWorkerHeartbeat } from "@/workers/execution/heartbeat";
 import { retryDelayMs, retryWithBackoff } from "@/workers/execution/retry";
 import { runWorkerCycle } from "@/workers/execution/worker-cycle";
+import { runWorkerSupervisor } from "@/workers/execution/supervisor";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -333,5 +334,26 @@ describe("Phase 2 execution safety", () => {
     }, async () => {
       throw new Error("reconciliation failed");
     })).rejects.toThrow("reconciliation failed");
+  });
+
+  it("propagates shutdown and runs cleanup after the current cycle", async () => {
+    const controller = new AbortController();
+    let cycles = 0;
+    let shutdown = false;
+    await runWorkerSupervisor({
+      signal: controller.signal,
+      pollIntervalMs: 100,
+      maxBackoffMs: 100,
+      runCycle: async (signal) => {
+        cycles += 1;
+        expect(signal.aborted).toBe(false);
+        controller.abort();
+      },
+      onShutdown: async () => {
+        shutdown = true;
+      },
+    });
+    expect(cycles).toBe(1);
+    expect(shutdown).toBe(true);
   });
 });

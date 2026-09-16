@@ -34,6 +34,8 @@ The first production architecture keeps the dashboard and control plane on Verce
 - `GET/POST /api/live/accounts` manages tenant-visible connection metadata only; raw Binance credentials are never accepted by this API.
 - `POST/DELETE /api/live/approvals` manages expiring, revocable admin approvals bound to a strategy and account.
 - `POST /api/live/emergency-stop` controls the admin emergency stop, which defaults active.
+- `GET /api/live/operations` returns tenant-scoped live-control health for the operations dashboard.
+- `GET /api/live/intents` and `GET /api/live/reconciliation` expose tenant-scoped preflight decisions and reconciliation history; neither endpoint can submit orders.
 
 Queued runs are claimed atomically through `claim_next_validation_run()` by a separate worker process. `workers/validation/runner.ts` executes supported historical backtests and finalizes runs through service-role-only RPCs; it never places live Binance orders.
 

@@ -26,6 +26,9 @@ export default function ValidationPage() {
           <Link className="nav-item" href="/strategies">
             <span>⚙</span> Risk controls
           </Link>
+          <Link className="nav-item" href="/live">
+            <span>◉</span> Live controls
+          </Link>
         </nav>
         <div className="sidebar-footer">
           <span><span className="status-dot" /> Binance market data ready</span>

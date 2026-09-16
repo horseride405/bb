@@ -2,6 +2,24 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 
+export async function GET(request: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+
+  const workspaceId = new URL(request.url).searchParams.get("workspace_id");
+  let query = supabase
+    .from("live_strategy_approvals")
+    .select("id, workspace_id, strategy_id, account_connection_id, approved_at, expires_at, revoked_at")
+    .order("approved_at", { ascending: false });
+  if (workspaceId) query = query.eq("workspace_id", workspaceId);
+  const { data, error } = await query;
+  if (error) return NextResponse.json({ error: "Unable to load live approvals" }, { status: 500 });
+  return NextResponse.json({ approvals: data });
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {

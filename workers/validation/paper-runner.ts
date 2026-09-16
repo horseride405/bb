@@ -1,4 +1,5 @@
 import type { PaperStreamConnector } from "@/lib/validation/paper-session";
+import { intervalDurationMs } from "@/lib/market-data/binance";
 import { startPaperTradingSession } from "@/lib/validation/paper-session";
 import { createPaperTradingEngine } from "@/lib/validation/paper-trading";
 import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
@@ -53,6 +54,7 @@ export async function runPaperValidation(
   let latestSnapshot: ReturnType<typeof engine.processCandle> | undefined;
   let streamError: Error | undefined;
   let stopSession: (() => void) | undefined;
+  let previousCloseTime: number | undefined;
 
   await new Promise<void>((resolve) => {
     let settled = false;
@@ -75,6 +77,15 @@ export async function runPaperValidation(
       engine,
       connect: request.connect,
       onSnapshot: (snapshot) => {
+        const intervalMs = intervalDurationMs[request.interval];
+        if (!intervalMs) throw new Error("Unsupported paper candle interval");
+        if (
+          previousCloseTime !== undefined &&
+          snapshot.candle.closeTime - previousCloseTime > intervalMs * 2
+        ) {
+          throw new Error("Paper validation detected a stale candle-data gap");
+        }
+        previousCloseTime = snapshot.candle.closeTime;
         latestSnapshot = snapshot;
       },
       onError: (error) => {

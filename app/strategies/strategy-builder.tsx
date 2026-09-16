@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import type { BinanceMarket } from "@/lib/market-data/binance";
+
 const templates = [
   {
     id: "momentum",
@@ -39,6 +41,9 @@ export default function StrategyBuilder() {
   const [trailingTakeProfitActivationPct, setTrailingTakeProfitActivationPct] = useState("1.5");
   const [workspaceId, setWorkspaceId] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
+  const [markets, setMarkets] = useState<BinanceMarket[]>([]);
+  const [marketLoading, setMarketLoading] = useState(true);
+  const [marketError, setMarketError] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -67,6 +72,31 @@ export default function StrategyBuilder() {
       })
       .catch((error: unknown) => {
         if (active) setSaveError(error instanceof Error ? error.message : "Unable to load workspaces");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/market-data/markets")
+      .then(async (response) => {
+        const payload = (await response.json()) as { markets?: BinanceMarket[]; error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "Unable to load markets");
+        return payload.markets ?? [];
+      })
+      .then((catalog) => {
+        if (active) {
+          setMarkets(catalog);
+          setMarketError("");
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) setMarketError(error instanceof Error ? error.message : "Unable to load markets");
+      })
+      .finally(() => {
+        if (active) setMarketLoading(false);
       });
     return () => {
       active = false;
@@ -195,11 +225,23 @@ export default function StrategyBuilder() {
             </label>
             <label>
               Market
-              <select value={symbol} onChange={(event) => setSymbol(event.target.value)}>
-                <option>BTCUSDT</option>
-                <option>ETHUSDT</option>
-                <option>SOLUSDT</option>
-              </select>
+              <input
+                list="binance-markets"
+                value={symbol}
+                onChange={(event) => { setSymbol(event.target.value.toUpperCase()); setSaved(false); }}
+                placeholder={marketLoading ? "Loading markets…" : "Search symbol"}
+                aria-describedby="market-help"
+              />
+              <datalist id="binance-markets">
+                {markets.map((market) => (
+                  <option key={market.symbol} value={market.symbol}>
+                    {market.baseAsset}/{market.quoteAsset} · {market.contractType}
+                  </option>
+                ))}
+              </datalist>
+              <small id="market-help" className="field-help">
+                {marketError || (markets.length > 0 ? `${markets.length} live USDⓈ-M markets available` : "Exchange catalog unavailable")}
+              </small>
             </label>
             <label>
               Timeframe
@@ -296,7 +338,7 @@ export default function StrategyBuilder() {
         <section className="builder-card summary-card">
           <p className="eyebrow">Draft summary</p>
           <div className="summary-row"><span>Template</span><strong>{template.name}</strong></div>
-          <div className="summary-row"><span>Market</span><strong>{symbol} Perpetual</strong></div>
+          <div className="summary-row"><span>Market</span><strong>{markets.find((market) => market.symbol === symbol)?.contractType ?? "Unverified"}</strong></div>
           <div className="summary-row"><span>Leverage cap</span><strong>{leverage}x</strong></div>
           <div className="summary-row"><span>Direction</span><strong>{positionMode === "bidirectional" ? "Long + short" : positionMode === "long-only" ? "Long only" : "Short only"}</strong></div>
           <div className="summary-row"><span>Execution</span><strong className="summary-green">{mode === "paper" ? "Paper only" : "Backtest only"}</strong></div>

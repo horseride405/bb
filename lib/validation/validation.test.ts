@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { normalizeBinanceSymbol } from "@/lib/market-data/binance";
 import type { Candle } from "@/lib/market-data/binance";
 import { evaluateLiveExecutionGate } from "@/lib/execution/live-gate";
 import { runBacktest, type BacktestOptions } from "@/lib/validation/backtest";
@@ -111,6 +112,12 @@ describe("bidirectional backtest safety", () => {
 });
 
 describe("validation safety boundaries", () => {
+  it("normalizes valid perpetual and delivery symbols", () => {
+    expect(normalizeBinanceSymbol(" btcusdt ")).toBe("BTCUSDT");
+    expect(normalizeBinanceSymbol("BTCUSD_250627")).toBe("BTCUSD_250627");
+    expect(() => normalizeBinanceSymbol("BTC-USDT")).toThrow("Invalid");
+  });
+
   it("rejects malformed candles and out-of-order funding", () => {
     expect(() => validateCandle(candle(0, 100, 99, 100))).toThrow();
     expect(() =>

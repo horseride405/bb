@@ -12,6 +12,22 @@ export type FundingRate = {
   fundingRate: number;
 };
 
+export type BinanceMarket = {
+  symbol: string;
+  pair: string;
+  status: string;
+  contractType: string;
+  baseAsset: string;
+  quoteAsset: string;
+  marginAsset: string;
+  pricePrecision: number;
+  quantityPrecision: number;
+  tickSize: number;
+  stepSize: number;
+  minQuantity: number;
+  minNotional: number;
+};
+
 export const supportedIntervals = new Set(["1m", "5m", "15m", "1h", "4h", "1d"]);
 export const intervalDurationMs: Record<string, number> = {
   "1m": 60_000,
@@ -23,6 +39,8 @@ export const intervalDurationMs: Record<string, number> = {
 };
 const defaultBaseUrl = "https://fapi.binance.com";
 export const maxHistoricalRangeMs = 90 * 24 * 60 * 60 * 1000;
+const marketCatalogCacheMs = 60_000;
+let marketCatalogCache: { expiresAt: number; markets: BinanceMarket[] } | undefined;
 
 export type CandleQuery = {
   startTime?: number;
@@ -33,16 +51,148 @@ function baseUrl() {
   return process.env.BINANCE_FUTURES_API_BASE_URL?.replace(/\/$/, "") ?? defaultBaseUrl;
 }
 
+function decimalValue(value: unknown, field: string) {
+  if (typeof value !== "string" || !Number.isFinite(Number(value)) || Number(value) < 0) {
+    throw new Error(`Binance returned an invalid ${field}`);
+  }
+  return Number(value);
+}
+
+function numberValue(value: unknown, field: string) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new Error(`Binance returned an invalid ${field}`);
+  }
+  return value;
+}
+
+export async function fetchBinanceMarkets(): Promise<BinanceMarket[]> {
+  if (marketCatalogCache && marketCatalogCache.expiresAt > Date.now()) {
+    return marketCatalogCache.markets;
+  }
+
+  const url = new URL("/fapi/v1/exchangeInfo", baseUrl());
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new Error(`Binance market-catalog request failed with status ${response.status}`);
+    }
+
+    const payload: unknown = await response.json();
+    if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+      throw new Error("Binance returned an invalid market catalog");
+    }
+    const catalog = payload as Record<string, unknown>;
+    if (!Array.isArray(catalog.symbols)) {
+      throw new Error("Binance returned an invalid market catalog");
+    }
+
+    const markets = catalog.symbols.map((entry: unknown) => {
+      if (
+        typeof entry !== "object" ||
+        entry === null ||
+        Array.isArray(entry)
+      ) {
+        throw new Error("Binance returned an invalid market entry");
+      }
+      const market = entry as Record<string, unknown>;
+      if (
+        typeof market.symbol !== "string" ||
+        typeof market.pair !== "string" ||
+        typeof market.status !== "string" ||
+        typeof market.contractType !== "string" ||
+        typeof market.baseAsset !== "string" ||
+        typeof market.quoteAsset !== "string" ||
+        typeof market.marginAsset !== "string" ||
+        !Array.isArray(market.filters)
+      ) {
+        throw new Error("Binance returned an invalid market entry");
+      }
+
+      const priceFilter = market.filters.find(
+        (filter: unknown) =>
+          typeof filter === "object" &&
+          filter !== null &&
+          !Array.isArray(filter) &&
+          (filter as Record<string, unknown>).filterType === "PRICE_FILTER",
+      );
+      const lotSizeFilter = market.filters.find(
+        (filter: unknown) =>
+          typeof filter === "object" &&
+          filter !== null &&
+          !Array.isArray(filter) &&
+          (filter as Record<string, unknown>).filterType === "LOT_SIZE",
+      );
+      const notionalFilter = market.filters.find(
+        (filter: unknown) =>
+          typeof filter === "object" &&
+          filter !== null &&
+          !Array.isArray(filter) &&
+          ((filter as Record<string, unknown>).filterType === "MIN_NOTIONAL" ||
+            (filter as Record<string, unknown>).filterType === "NOTIONAL"),
+      );
+
+      if (
+        typeof priceFilter !== "object" ||
+        priceFilter === null ||
+        Array.isArray(priceFilter) ||
+        typeof lotSizeFilter !== "object" ||
+        lotSizeFilter === null ||
+        Array.isArray(lotSizeFilter)
+      ) {
+        throw new Error("Binance returned incomplete market filters");
+      }
+
+      return {
+        symbol: market.symbol,
+        pair: market.pair,
+        status: market.status,
+        contractType: market.contractType,
+        baseAsset: market.baseAsset,
+        quoteAsset: market.quoteAsset,
+        marginAsset: market.marginAsset,
+        pricePrecision: numberValue(market.pricePrecision, "price precision"),
+        quantityPrecision: numberValue(market.quantityPrecision, "quantity precision"),
+        tickSize: decimalValue((priceFilter as Record<string, unknown>).tickSize, "tick size"),
+        stepSize: decimalValue((lotSizeFilter as Record<string, unknown>).stepSize, "step size"),
+        minQuantity: decimalValue((lotSizeFilter as Record<string, unknown>).minQty, "minimum quantity"),
+        minNotional:
+          typeof notionalFilter === "object" &&
+          notionalFilter !== null &&
+          !Array.isArray(notionalFilter) &&
+          typeof (notionalFilter as Record<string, unknown>).notional === "string"
+            ? decimalValue((notionalFilter as Record<string, unknown>).notional, "minimum notional")
+            : 0,
+      };
+    });
+
+    marketCatalogCache = { expiresAt: Date.now() + marketCatalogCacheMs, markets };
+    return markets;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export function normalizeBinanceSymbol(symbol: string) {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  if (!/^[A-Z0-9_]{5,30}$/.test(normalizedSymbol)) {
+    throw new Error("Invalid Binance Futures symbol");
+  }
+  return normalizedSymbol;
+}
+
 export async function fetchBinanceCandles(
   symbol: string,
   interval: string,
   limit: number,
   query: CandleQuery = {},
 ): Promise<Candle[]> {
-  const normalizedSymbol = symbol.trim().toUpperCase();
-  if (!/^[A-Z0-9]{5,20}$/.test(normalizedSymbol)) {
-    throw new Error("Invalid Binance Futures symbol");
-  }
+  const normalizedSymbol = normalizeBinanceSymbol(symbol);
   if (!supportedIntervals.has(interval)) {
     throw new Error("Unsupported candle interval");
   }
@@ -172,8 +322,7 @@ export async function fetchBinanceFundingRates(
   symbol: string,
   query: { startTime: number; endTime: number },
 ): Promise<FundingRate[]> {
-  const normalizedSymbol = symbol.trim().toUpperCase();
-  if (!/^[A-Z0-9]{5,20}$/.test(normalizedSymbol)) throw new Error("Invalid Binance Futures symbol");
+  const normalizedSymbol = normalizeBinanceSymbol(symbol);
   if (
     !Number.isInteger(query.startTime) ||
     !Number.isInteger(query.endTime) ||

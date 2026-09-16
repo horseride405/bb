@@ -1,7 +1,5 @@
 import type { Json } from "@/lib/supabase/database";
-import { maxHistoricalRangeMs, supportedIntervals } from "@/lib/market-data/binance";
-
-const symbolPattern = /^[A-Z0-9]{5,20}$/;
+import { maxHistoricalRangeMs, normalizeBinanceSymbol, supportedIntervals } from "@/lib/market-data/binance";
 
 export type ValidationParameters = {
   symbol: string;
@@ -41,7 +39,11 @@ export function parseValidationParameters(runType: "paper" | "backtest", input: 
   const symbol = typeof record.symbol === "string" ? record.symbol.trim().toUpperCase() : "";
   const interval = typeof record.interval === "string" ? record.interval : "";
 
-  if (!symbolPattern.test(symbol)) throw new Error("A valid Binance Futures symbol is required");
+  try {
+    normalizeBinanceSymbol(symbol);
+  } catch {
+    throw new Error("A valid Binance Futures symbol is required");
+  }
   if (!supportedIntervals.has(interval)) throw new Error("A supported candle interval is required");
 
   const parameters: ValidationParameters = {

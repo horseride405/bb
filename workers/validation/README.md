@@ -46,6 +46,8 @@ The worker uses `lib/supabase/service.ts`, which disables session persistence an
 
 Metrics must be calculated from actual historical candles or live streamed paper-trading events. The worker must not populate successful results from placeholders or predicted values.
 
+Completed worker results also include `validationConfig`, which records the selected template, position mode, trailing-exit settings, leverage/notional limits, liquidation-distance policy, trade-frequency cap, and entry cooldown used for that run. This makes stored validation evidence reproducible even if the workspace policy or strategy draft changes later.
+
 Historical backtests should request explicit candle timestamps through the authenticated market-data boundary. Requests are bounded to a 90-day range; the worker paginates Binance's 1,500-candle response limit deliberately, deduplicates pages, and rejects pagination that stops making progress.
 
 Queued runs use normalized parameters: `symbol`, `interval`, `initialEquity`, `feeRateBps`, and `slippageBps`. Backtests additionally require `startTime` and `endTime`; the API rejects missing or non-reproducible ranges before queue insertion.

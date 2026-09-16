@@ -23,6 +23,18 @@ type ResultTrade = {
   exitReason?: "signal" | "end" | "liquidation" | "trailing_stop_loss" | "trailing_take_profit";
 };
 type RiskReview = { passed: boolean; violations: string[]; observed?: { maxDailyLossPct?: number }; };
+type ValidationConfig = {
+  template?: string;
+  positionMode?: string;
+  trailingStopLossPct?: number | null;
+  trailingTakeProfitPct?: number | null;
+  trailingTakeProfitActivationPct?: number | null;
+  maxLeverage?: number;
+  maxPositionNotional?: number;
+  minLiquidationDistancePct?: number;
+  maxTradesPerHour?: number;
+  minTradeIntervalSeconds?: number;
+};
 type Run = {
   id: string;
   run_type: "paper" | "backtest";
@@ -33,6 +45,7 @@ type Run = {
     equityCurve?: number[];
     equityCurveTimes?: number[];
     trades?: ResultTrade[];
+    validationConfig?: ValidationConfig;
     riskReview?: RiskReview;
   } | null;
   error_message: string | null;
@@ -198,6 +211,24 @@ function RunRow({ run }: { run: Run }) {
               }
             />
           </div>
+          {run.results.validationConfig && (
+            <div className="trade-list">
+              <span>Template: {run.results.validationConfig.template ?? "—"}</span>
+              <span>Mode: {run.results.validationConfig.positionMode ?? "—"}</span>
+              <span>
+                Trailing: SL {run.results.validationConfig.trailingStopLossPct ?? "off"}% · TP{" "}
+                {run.results.validationConfig.trailingTakeProfitPct ?? "off"}%
+                {run.results.validationConfig.trailingTakeProfitActivationPct === null ||
+                run.results.validationConfig.trailingTakeProfitActivationPct === undefined
+                  ? ""
+                  : ` · activates at ${run.results.validationConfig.trailingTakeProfitActivationPct}%`}
+              </span>
+              <span>
+                Risk: {run.results.validationConfig.maxLeverage ?? "—"}x · cooldown{" "}
+                {run.results.validationConfig.minTradeIntervalSeconds ?? "—"}s
+              </span>
+            </div>
+          )}
           {Object.keys(exitCounts).length > 0 && (
             <div className="trade-list">
               {Object.entries(exitCounts).map(([reason, count]) => (

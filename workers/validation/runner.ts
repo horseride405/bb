@@ -73,6 +73,18 @@ export async function processNextValidationRun(client: WorkerClient = createServ
       trailingTakeProfitPct: optionalPercentValue(config, "trailingTakeProfitPct"),
       trailingTakeProfitActivationPct: optionalPercentValue(config, "trailingTakeProfitActivationPct"),
     };
+    const validationConfig = {
+      template: templateValue(config),
+      positionMode: signalOptions.positionMode,
+      trailingStopLossPct: trailingOptions.trailingStopLossPct ?? null,
+      trailingTakeProfitPct: trailingOptions.trailingTakeProfitPct ?? null,
+      trailingTakeProfitActivationPct: trailingOptions.trailingTakeProfitActivationPct ?? null,
+      maxLeverage: riskPolicy.max_leverage,
+      maxPositionNotional: riskPolicy.max_position_notional,
+      minLiquidationDistancePct: riskPolicy.min_liquidation_distance_pct,
+      maxTradesPerHour: riskPolicy.max_trades_per_hour,
+      minTradeIntervalSeconds: riskPolicy.min_trade_interval_seconds,
+    };
     if (run.run_type === "paper") {
       const result = await runPaperValidation({
         symbol: String(parameters.symbol),
@@ -98,7 +110,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
         curve: result.equityCurve,
         times: result.equityCurveTimes,
       }, numberValue(parameters, "durationMs"), result.trades);
-      const completedResult = { ...result, riskReview };
+      const completedResult = { ...result, validationConfig, riskReview };
       const { error: completionError } = await client.rpc("complete_validation_run", {
         run_id: run.id,
         run_results: completedResult as unknown as Json,
@@ -135,10 +147,10 @@ export async function processNextValidationRun(client: WorkerClient = createServ
 
     const { error: completionError } = await client.rpc("complete_validation_run", {
       run_id: run.id,
-      run_results: { ...result, riskReview } as unknown as Json,
+      run_results: { ...result, validationConfig, riskReview } as unknown as Json,
     });
     if (completionError) throw new Error(`Unable to complete validation run: ${completionError.message}`);
-    return { runId: run.id, status: "completed" as const, result: { ...result, riskReview } };
+    return { runId: run.id, status: "completed" as const, result: { ...result, validationConfig, riskReview } };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Validation worker failed";
     const { error: failureError } = await client.rpc("fail_validation_run", {

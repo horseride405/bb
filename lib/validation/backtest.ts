@@ -1,7 +1,7 @@
 import type { Candle } from "@/lib/market-data/binance";
 import { calculateValidationMetrics, type TradeOutcome, type ValidationMetrics } from "@/lib/validation/metrics";
 
-export type BacktestSignal = "long" | "flat";
+export type BacktestSignal = "long" | "short" | "flat";
 
 export type BacktestOptions = {
   initialEquity: number;
@@ -13,6 +13,7 @@ export type BacktestOptions = {
 };
 
 export type BacktestTrade = TradeOutcome & {
+  side: "long" | "short";
   entryTime: number;
   exitTime: number;
   entryPrice: number;
@@ -39,7 +40,7 @@ function assertCandles(candles: Candle[]) {
   }
 }
 
-export function runLongOnlyBacktest(candles: Candle[], options: BacktestOptions): BacktestResult {
+export function runBacktest(candles: Candle[], options: BacktestOptions): BacktestResult {
   assertCandles(candles);
   if (candles.length === 0) {
     return {
@@ -71,6 +72,7 @@ export function runLongOnlyBacktest(candles: Candle[], options: BacktestOptions)
         entryTime: number;
         entryFee: number;
         quantity: number;
+        side: "long" | "short";
       }
     | undefined;
   const equityCurve: number[] = [];
@@ -79,14 +81,16 @@ export function runLongOnlyBacktest(candles: Candle[], options: BacktestOptions)
 
   const closePosition = (candle: Candle) => {
     if (!position) return;
-    const exitPrice = candle.close * (1 - slippageRate);
-    const grossPnl = (exitPrice - position.entryPrice) * position.quantity;
+    const exitPrice = candle.close * (position.side === "long" ? 1 - slippageRate : 1 + slippageRate);
+    const grossPnl =
+      (exitPrice - position.entryPrice) * position.quantity * (position.side === "long" ? 1 : -1);
     const exitFee = exitPrice * position.quantity * feeRate;
     cash += grossPnl - exitFee;
     trades.push({
       pnl: grossPnl - position.entryFee - exitFee,
       fees: position.entryFee + exitFee,
       funding: 0,
+      side: position.side,
       entryTime: position.entryTime,
       exitTime: candle.closeTime,
       entryPrice: position.entryPrice,
@@ -99,28 +103,30 @@ export function runLongOnlyBacktest(candles: Candle[], options: BacktestOptions)
   for (let index = 0; index < candles.length; index += 1) {
     const candle = candles[index];
     const signal = options.signal(candle, index);
-    if (signal !== "long" && signal !== "flat") {
-      throw new Error("Backtest signal must be long or flat");
+    if (signal !== "long" && signal !== "short" && signal !== "flat") {
+      throw new Error("Backtest signal must be long, short, or flat");
     }
 
-    if (position && signal === "flat") closePosition(candle);
-    if (!position && signal === "long" && index < candles.length - 1) {
+    if (position && (signal === "flat" || signal !== position.side)) closePosition(candle);
+    if (!position && signal !== "flat" && index < candles.length - 1) {
       const availableEquity = Math.max(cash, 0);
       const notional = Math.min(
         availableEquity * options.maxLeverage,
         options.maxPositionNotional ?? Number.POSITIVE_INFINITY,
       );
-      const entryPrice = candle.close * (1 + slippageRate);
+      const entryPrice = candle.close * (signal === "long" ? 1 + slippageRate : 1 - slippageRate);
       const quantity = notional / entryPrice;
       const entryFee = notional * feeRate;
       if (quantity > 0 && entryFee < availableEquity) {
         cash -= entryFee;
-        position = { entryPrice, entryTime: candle.closeTime, entryFee, quantity };
+        position = { entryPrice, entryTime: candle.closeTime, entryFee, quantity, side: signal };
       }
     }
 
     equityCurve.push(
-      position ? cash + (candle.close - position.entryPrice) * position.quantity : cash,
+      position
+        ? cash + (candle.close - position.entryPrice) * position.quantity * (position.side === "long" ? 1 : -1)
+        : cash,
     );
     equityCurveTimes.push(candle.closeTime);
   }

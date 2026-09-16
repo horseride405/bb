@@ -15,6 +15,7 @@ type ResultMetrics = {
   funding: number;
 };
 type ResultTrade = {
+  side: "long" | "short";
   pnl: number;
   fees: number;
   entryTime: number;
@@ -195,7 +196,7 @@ function RunRow({ run }: { run: Run }) {
             <div className="trade-list">
               {run.results.trades.slice(-3).map((trade, index) => (
                 <span key={`${trade.entryTime}-${trade.exitTime}-${index}`}>
-                  {new Date(trade.exitTime).toLocaleDateString()}: {trade.pnl >= 0 ? "+" : ""}
+                  {trade.side} {new Date(trade.exitTime).toLocaleDateString()}: {trade.pnl >= 0 ? "+" : ""}
                   {trade.pnl.toFixed(2)} PnL
                 </span>
               ))}

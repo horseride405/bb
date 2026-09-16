@@ -32,7 +32,7 @@ export function createTemplateSignal(
   const closes: number[] = [];
   const highs: number[] = [];
   const lows: number[] = [];
-  let inPosition = false;
+  let positionSide: BacktestSignal = "flat";
   const fastPeriod = positiveInteger(options.fastPeriod, 5);
   const slowPeriod = Math.max(fastPeriod + 1, positiveInteger(options.slowPeriod, 20));
   const lookbackPeriod = positiveInteger(options.lookbackPeriod, 20);
@@ -46,25 +46,46 @@ export function createTemplateSignal(
     let signal: BacktestSignal = "flat";
 
     if (template === "momentum" && closes.length >= slowPeriod) {
-      signal = recentAverage(closes, fastPeriod) > recentAverage(closes, slowPeriod) ? "long" : "flat";
+      const fastAverage = recentAverage(closes, fastPeriod);
+      const slowAverage = recentAverage(closes, slowPeriod);
+      signal = fastAverage > slowAverage ? "long" : fastAverage < slowAverage ? "short" : "flat";
     }
 
     if (template === "mean-reversion" && closes.length >= lookbackPeriod) {
       const mean = recentAverage(closes, lookbackPeriod);
       const lowerBand = mean - recentStandardDeviation(closes, lookbackPeriod, mean) * deviationMultiplier;
-      signal = inPosition ? (candle.close >= mean ? "flat" : "long") : candle.close <= lowerBand ? "long" : "flat";
+      const upperBand = mean + recentStandardDeviation(closes, lookbackPeriod, mean) * deviationMultiplier;
+      signal =
+        positionSide === "long"
+          ? candle.close >= mean ? "flat" : "long"
+          : positionSide === "short"
+            ? candle.close <= mean ? "flat" : "short"
+            : candle.close <= lowerBand
+              ? "long"
+              : candle.close >= upperBand
+                ? "short"
+                : "flat";
     }
 
     if (template === "breakout" && highs.length >= lookbackPeriod) {
       const resistance = Math.max(...highs.slice(-lookbackPeriod));
       const support = Math.min(...lows.slice(-lookbackPeriod));
-      signal = inPosition ? (candle.close < support ? "flat" : "long") : candle.close > resistance ? "long" : "flat";
+      signal =
+        positionSide === "long"
+          ? candle.close < support ? "flat" : "long"
+          : positionSide === "short"
+            ? candle.close > resistance ? "flat" : "short"
+            : candle.close > resistance
+              ? "long"
+              : candle.close < support
+                ? "short"
+                : "flat";
     }
 
     closes.push(candle.close);
     highs.push(candle.high);
     lows.push(candle.low);
-    inPosition = signal === "long";
+    positionSide = signal;
     return signal;
   };
 }

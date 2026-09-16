@@ -1,5 +1,5 @@
 import { fetchBinanceCandles, maxHistoricalRangeMs, type Candle } from "@/lib/market-data/binance";
-import { runLongOnlyBacktest, type BacktestResult } from "@/lib/validation/backtest";
+import { runBacktest, type BacktestResult } from "@/lib/validation/backtest";
 import { createTemplateSignal, type StrategyTemplate } from "@/lib/validation/signals";
 
 export type HistoricalBacktestRequest = {
@@ -58,7 +58,7 @@ export async function runHistoricalBacktest(
     throw new Error("Historical backtest returned no candles");
   }
 
-  const result = runLongOnlyBacktest(candles, {
+  const result = runBacktest(candles, {
     initialEquity: request.initialEquity,
     feeRateBps: request.feeRateBps,
     slippageBps: request.slippageBps,

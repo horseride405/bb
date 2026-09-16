@@ -14,12 +14,25 @@ type ResultMetrics = {
   fees: number;
   funding: number;
 };
+type ResultTrade = {
+  pnl: number;
+  fees: number;
+  entryTime: number;
+  exitTime: number;
+};
 type RiskReview = { passed: boolean; violations: string[]; observed?: { maxDailyLossPct?: number }; };
 type Run = {
   id: string;
   run_type: "paper" | "backtest";
   status: string;
-  results: { version?: number; metrics?: ResultMetrics; riskReview?: RiskReview } | null;
+  results: {
+    version?: number;
+    metrics?: ResultMetrics;
+    equityCurve?: number[];
+    equityCurveTimes?: number[];
+    trades?: ResultTrade[];
+    riskReview?: RiskReview;
+  } | null;
   error_message: string | null;
   created_at: string;
 };
@@ -154,6 +167,41 @@ function RunRow({ run }: { run: Run }) {
           />
           <Metric label="Risk review" value={run.results?.riskReview?.passed ? "Passed" : "Review"} />
         </div>
+      )}
+      {run.status === "completed" && run.results && (
+        <details className="run-details">
+          <summary>Inspect validation data</summary>
+          <div className="run-detail-grid">
+            <Metric label="Equity points" value={String(run.results.equityCurve?.length ?? 0)} />
+            <Metric label="Closed trades" value={String(run.results.trades?.length ?? metrics?.tradeCount ?? 0)} />
+            <Metric
+              label="Final equity"
+              value={
+                run.results.equityCurve?.at(-1) === undefined
+                  ? "—"
+                  : run.results.equityCurve.at(-1)!.toFixed(2)
+              }
+            />
+            <Metric
+              label="Last candle"
+              value={
+                run.results.equityCurveTimes?.at(-1) === undefined
+                  ? "—"
+                  : new Date(run.results.equityCurveTimes.at(-1)!).toLocaleString()
+              }
+            />
+          </div>
+          {run.results.trades && run.results.trades.length > 0 && (
+            <div className="trade-list">
+              {run.results.trades.slice(-3).map((trade, index) => (
+                <span key={`${trade.entryTime}-${trade.exitTime}-${index}`}>
+                  {new Date(trade.exitTime).toLocaleDateString()}: {trade.pnl >= 0 ? "+" : ""}
+                  {trade.pnl.toFixed(2)} PnL
+                </span>
+              ))}
+            </div>
+          )}
+        </details>
       )}
       {run.status === "completed" && run.results?.riskReview && !run.results.riskReview.passed && (
         <p className="run-error">{run.results.riskReview.violations.join("; ")}</p>

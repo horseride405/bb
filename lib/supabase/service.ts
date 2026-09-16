@@ -1,0 +1,19 @@
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
+
+import type { Database } from "@/lib/supabase/database";
+
+export function createServiceClient(): SupabaseClient<Database> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey) {
+    throw new Error("Worker Supabase environment is not configured");
+  }
+
+  return createSupabaseClient<Database>(url, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      persistSession: false,
+    },
+  });
+}

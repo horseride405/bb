@@ -22,6 +22,8 @@ SUPABASE_SERVICE_ROLE_KEY
 
 The service-role key belongs only in the worker deployment secret store. It must never be included in browser bundles, request payloads, logs, or repository files.
 
+The worker uses `lib/supabase/service.ts`, which disables session persistence and is not imported by browser or Next.js route code.
+
 ## Result contract
 
 `strategy_runs.results` should contain a versioned object like:
@@ -53,3 +55,5 @@ The pure `runLongOnlyBacktest` core accepts real normalized candles plus a strat
 `createTemplateSignal` supplies no-lookahead callbacks for the current Momentum, Mean Reversion, and Breakout templates. The worker should construct the signal from the stored strategy configuration, pass it to `runLongOnlyBacktest`, and persist only the resulting metrics and trade data.
 
 `runHistoricalBacktest` is the worker-facing composition boundary: it fetches at most 1,500 candles for the requested bounded window, selects the template signal, runs the simulator, and returns versioned metadata plus metrics. Invoke it only after a queue claim; never call it from a browser or a Vercel request handler.
+
+`workers/validation/runner.ts` provides the first queue loop. `processNextValidationRun()` claims one run, loads its strategy and workspace risk policy, executes backtests, and finalizes the run. Paper runs currently fail explicitly because the live-data paper engine has not been implemented; this is safer than reporting an incomplete result.

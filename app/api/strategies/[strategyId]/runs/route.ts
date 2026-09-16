@@ -82,6 +82,22 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Live strategies cannot create validation runs" }, { status: 409 });
   }
 
+  if (body.run_type === "paper") {
+    const { data: activePaperRun, error: activeRunError } = await supabase
+      .from("strategy_runs")
+      .select("id")
+      .eq("strategy_id", strategy.id)
+      .eq("run_type", "paper")
+      .in("status", ["queued", "running"])
+      .maybeSingle();
+    if (activeRunError) {
+      return NextResponse.json({ error: "Unable to check active paper bot sessions" }, { status: 500 });
+    }
+    if (activePaperRun) {
+      return NextResponse.json({ error: "A paper bot session is already active for this strategy" }, { status: 409 });
+    }
+  }
+
   const { data, error } = await supabase
     .from("strategy_runs")
     .insert({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const templates = [
   {
@@ -30,18 +30,78 @@ export default function StrategyBuilder() {
   const [mode, setMode] = useState<Mode>("paper");
   const [name, setName] = useState("BTC Momentum");
   const [symbol, setSymbol] = useState("BTCUSDT");
+  const [interval, setInterval] = useState("15m");
   const [leverage, setLeverage] = useState("3");
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [workspaceName, setWorkspaceName] = useState("");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const template = useMemo(
     () => templates.find((candidate) => candidate.id === templateId) ?? templates[0],
     [templateId],
   );
 
+  useEffect(() => {
+    let active = true;
+    fetch("/api/workspaces")
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Unable to load workspaces");
+        return (await response.json()) as { workspaces?: Array<{ id: string; name: string }> };
+      })
+      .then((payload) => {
+        const workspace = payload.workspaces?.[0];
+        if (active && workspace) {
+          setWorkspaceId(workspace.id);
+          setWorkspaceName(workspace.name);
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) setSaveError(error instanceof Error ? error.message : "Unable to load workspaces");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   function chooseTemplate(id: string, templateName: string) {
     setTemplateId(id);
     setName(`${symbol.replace("USDT", "")} ${templateName}`);
     setSaved(false);
+  }
+
+  async function saveDraft() {
+    if (!workspaceId) {
+      setSaveError("Sign in and create a workspace before saving a strategy");
+      return;
+    }
+    setSaving(true);
+    setSaveError("");
+    try {
+      const response = await fetch("/api/strategies", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          name,
+          mode,
+          config: {
+            template: templateId,
+            symbol,
+            interval,
+            maxLeverage: Number(leverage),
+          },
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Unable to save strategy");
+      setSaved(true);
+    } catch (error: unknown) {
+      setSaveError(error instanceof Error ? error.message : "Unable to save strategy");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -95,7 +155,7 @@ export default function StrategyBuilder() {
             </label>
             <label>
               Timeframe
-              <select defaultValue="15m">
+              <select value={interval} onChange={(event) => setInterval(event.target.value)}>
                 <option>5m</option>
                 <option>15m</option>
                 <option>1h</option>
@@ -142,9 +202,10 @@ export default function StrategyBuilder() {
             <span>!</span>
             <p><strong>Live trading is locked</strong> until this strategy passes validation and workspace risk checks.</p>
           </div>
-          <button className="primary-button wide-button" onClick={() => setSaved(true)} type="button">
-            {saved ? "Draft saved locally" : `Save ${mode} draft`}
+          <button className="primary-button wide-button" onClick={saveDraft} disabled={saving} type="button">
+            {saving ? "Saving strategy…" : saved ? "Strategy saved" : `Save ${mode} draft`}
           </button>
+          <p className="run-error">{saveError || (workspaceName ? `Workspace: ${workspaceName}` : "Loading workspace…")}</p>
         </section>
 
         <section className="builder-card summary-card">

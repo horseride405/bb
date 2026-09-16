@@ -9,6 +9,56 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      workspace_invitations: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          email: string;
+          role: "owner" | "admin" | "trader" | "viewer";
+          token_digest: string;
+          invited_by: string;
+          expires_at: string;
+          accepted_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          email: string;
+          role?: "owner" | "admin" | "trader" | "viewer";
+          token_digest: string;
+          invited_by: string;
+          expires_at: string;
+          accepted_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["workspace_invitations"]["Insert"]>;
+        Relationships: [];
+      };
+      billing_provider_events: {
+        Row: {
+          id: string;
+          provider: string;
+          provider_event_id: string;
+          event_type: string;
+          payload: Json;
+          processed_at: string | null;
+          processing_error: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          provider: string;
+          provider_event_id: string;
+          event_type: string;
+          payload?: Json;
+          processed_at?: string | null;
+          processing_error?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["billing_provider_events"]["Insert"]>;
+        Relationships: [];
+      };
       workspace_subscriptions: {
         Row: {
           workspace_id: string;

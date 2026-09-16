@@ -24,6 +24,7 @@ import { createDisabledExecutionAdapter } from "@/workers/execution/adapter";
 import { validateSecretReference } from "@/workers/execution/secret-manager";
 import { evaluateManualEnablement } from "@/workers/execution/enablement";
 import { evaluateEntitlement, getPlanEntitlements } from "@/lib/billing/entitlements";
+import { assertEntitledUsage, getCurrentUsagePeriod } from "@/lib/billing/usage";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -463,5 +464,15 @@ describe("Phase 2 execution safety", () => {
       resource: "live_controls",
       currentUsage: 0,
     })).toEqual({ allowed: true, reason: null });
+    expect(() => assertEntitledUsage({
+      plan: "starter",
+      subscriptionStatus: "active",
+      resource: "strategy",
+      usage: { validationRuns: 0, activeStrategies: 3, connectedAccounts: 0 },
+    })).toThrow("plan_limit_reached");
+    expect(getCurrentUsagePeriod(new Date("2026-09-16T12:00:00.000Z"))).toEqual({
+      periodStart: "2026-09-01T00:00:00.000Z",
+      periodEnd: "2026-10-01T00:00:00.000Z",
+    });
   });
 });

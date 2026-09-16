@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-import StrategyBuilder from "./strategy-builder";
+import ValidationDashboard from "./validation-dashboard";
 
-export default function StrategiesPage() {
+export default function ValidationPage() {
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -14,13 +14,13 @@ export default function StrategiesPage() {
           <Link className="nav-item" href="/">
             <span>◈</span> Overview
           </Link>
-          <Link className="nav-item active" href="/strategies">
+          <Link className="nav-item" href="/strategies">
             <span>⌁</span> Strategies
           </Link>
-          <Link className="nav-item" href="/validation">
-            <span>◌</span> Backtests
+          <Link className="nav-item active" href="/validation">
+            <span>◌</span> Validation
           </Link>
-          <Link className="nav-item" href="/validation">
+          <Link className="nav-item" href="/strategies">
             <span>↗</span> Paper trading
           </Link>
           <Link className="nav-item" href="/strategies">
@@ -28,7 +28,7 @@ export default function StrategiesPage() {
           </Link>
         </nav>
         <div className="sidebar-footer">
-          <span><span className="status-dot" /> Binance testnet connected</span>
+          <span><span className="status-dot" /> Binance market data ready</span>
           <button className="tenant-switcher">Horseride workspace <span>⌄</span></button>
         </div>
       </aside>
@@ -36,12 +36,12 @@ export default function StrategiesPage() {
       <section className="content">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Strategy lab / New strategy</p>
-            <h1>Configure a strategy</h1>
+            <p className="eyebrow">Strategy lab / Validation center</p>
+            <h1>Validate before you trade</h1>
           </div>
-          <Link className="secondary-button back-link" href="/">← Back to overview</Link>
+          <Link className="secondary-button back-link" href="/strategies">← Configure strategy</Link>
         </header>
-        <StrategyBuilder />
+        <ValidationDashboard />
       </section>
     </main>
   );

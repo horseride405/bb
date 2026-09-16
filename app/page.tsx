@@ -45,10 +45,10 @@ export default function Home() {
           <Link className="nav-item" href="/strategies">
             <span>⌁</span> Strategies
           </Link>
-          <Link className="nav-item" href="/strategies">
+          <Link className="nav-item" href="/validation">
             <span>◌</span> Backtests
           </Link>
-          <Link className="nav-item" href="/strategies">
+          <Link className="nav-item" href="/validation">
             <span>↗</span> Paper trading
           </Link>
           <Link className="nav-item" href="/strategies">

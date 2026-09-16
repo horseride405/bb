@@ -34,6 +34,8 @@ The first production architecture keeps the dashboard and control plane on Verce
 
 Queued runs are claimed atomically through `claim_next_validation_run()` by a separate worker process. The worker contract is documented in `workers/validation/README.md`; it never places live Binance orders.
 
+The `/validation` dashboard reports market-data readiness, queued-run activity, and the required backtest → paper trading → risk review pipeline.
+
 ## Safety boundary
 
 Live trading must remain disabled until tenant isolation, encrypted API credentials, paper-trading validation, risk limits, reconciliation, audit logs, and an emergency kill switch are implemented and tested.

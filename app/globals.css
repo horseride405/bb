@@ -72,6 +72,11 @@ h3 { font-size: 14px; margin: 0 0 5px; }
 .template-card:hover, .template-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px #3b6df614; }
 .template-card strong { font-size: 13px; }.template-card span:not(.template-icon), .template-card small { color: var(--muted); font-size: 11px; line-height: 1.45; }.template-card small { color: var(--accent); }
 .template-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.rule-editor { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--line); }
+.rule-group { display: grid; gap: 8px; margin-top: 16px; }
+.rule-group-heading { display: flex; justify-content: space-between; align-items: center; color: var(--ink); font-size: 11px; }
+.rule-row { display: grid; grid-template-columns: 1fr 84px 1.2fr 100px 24px; gap: 8px; align-items: center; }
+.rule-row select, .rule-row input { width: 100%; padding: 9px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: white; font-size: 11px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 17px 14px; }
 .form-grid label { display: grid; gap: 7px; color: var(--muted); font-size: 11px; font-weight: 700; }
 .form-grid input, .form-grid select { width: 100%; padding: 11px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: white; font-size: 12px; }

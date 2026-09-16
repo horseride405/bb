@@ -27,9 +27,16 @@ const templates = [
 
 type Mode = "paper" | "backtest";
 type PositionMode = "bidirectional" | "long-only" | "short-only";
+type StrategyType = "template" | "custom";
+type RuleValue = "price" | "volume" | "sma" | "ema" | "rsi";
+type Rule = { left: RuleValue; period: string; operator: "greater_than" | "less_than" | "crosses_above" | "crosses_below"; right: string };
+type RuleSide = "longEntry" | "shortEntry" | "longExit" | "shortExit";
+
+const emptyRule = (): Rule => ({ left: "price", period: "20", operator: "crosses_above", right: "100" });
 
 export default function StrategyBuilder() {
   const [templateId, setTemplateId] = useState("momentum");
+  const [strategyType, setStrategyType] = useState<StrategyType>("template");
   const [mode, setMode] = useState<Mode>("paper");
   const [name, setName] = useState("BTC Momentum");
   const [symbol, setSymbol] = useState("BTCUSDT");
@@ -50,6 +57,12 @@ export default function StrategyBuilder() {
   const [strategyId, setStrategyId] = useState("");
   const [queueing, setQueueing] = useState(false);
   const [queueMessage, setQueueMessage] = useState("");
+  const [rules, setRules] = useState<Record<RuleSide, Rule[]>>({
+    longEntry: [{ left: "price", period: "20", operator: "crosses_above", right: "100" }],
+    shortEntry: [{ left: "price", period: "20", operator: "crosses_below", right: "100" }],
+    longExit: [{ left: "price", period: "20", operator: "crosses_below", right: "100" }],
+    shortExit: [{ left: "price", period: "20", operator: "crosses_above", right: "100" }],
+  });
 
   const template = useMemo(
     () => templates.find((candidate) => candidate.id === templateId) ?? templates[0],
@@ -109,6 +122,23 @@ export default function StrategyBuilder() {
     setSaved(false);
   }
 
+  function updateRule(side: RuleSide, index: number, update: Partial<Rule>) {
+    setRules((current) => ({
+      ...current,
+      [side]: current[side].map((rule, ruleIndex) => ruleIndex === index ? { ...rule, ...update } : rule),
+    }));
+    setSaved(false);
+  }
+
+  function addRule(side: RuleSide) {
+    setRules((current) => ({ ...current, [side]: [...current[side], emptyRule()] }));
+  }
+
+  function removeRule(side: RuleSide, index: number) {
+    setRules((current) => ({ ...current, [side]: current[side].filter((_, ruleIndex) => ruleIndex !== index) }));
+    setSaved(false);
+  }
+
   async function saveDraft() {
     if (!workspaceId) {
       setSaveError("Sign in and create a workspace before saving a strategy");
@@ -125,7 +155,16 @@ export default function StrategyBuilder() {
           name,
           mode,
           config: {
-            template: templateId,
+            strategyType,
+            ...(strategyType === "custom"
+              ? {
+                  conditionMode: "all",
+                  longEntry: rules.longEntry.map((rule) => ({ left: { type: rule.left, ...(rule.left === "price" || rule.left === "volume" ? {} : { period: Number(rule.period) }) }, operator: rule.operator, right: Number(rule.right) })),
+                  shortEntry: rules.shortEntry.map((rule) => ({ left: { type: rule.left, ...(rule.left === "price" || rule.left === "volume" ? {} : { period: Number(rule.period) }) }, operator: rule.operator, right: Number(rule.right) })),
+                  longExit: rules.longExit.map((rule) => ({ left: { type: rule.left, ...(rule.left === "price" || rule.left === "volume" ? {} : { period: Number(rule.period) }) }, operator: rule.operator, right: Number(rule.right) })),
+                  shortExit: rules.shortExit.map((rule) => ({ left: { type: rule.left, ...(rule.left === "price" || rule.left === "volume" ? {} : { period: Number(rule.period) }) }, operator: rule.operator, right: Number(rule.right) })),
+                }
+              : { template: templateId }),
             symbol,
             interval,
             maxLeverage: Number(leverage),
@@ -174,7 +213,7 @@ export default function StrategyBuilder() {
       });
       const payload = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Unable to queue validation");
-      setQueueMessage(`${mode === "paper" ? "Paper" : "Backtest"} validation queued`);
+      setQueueMessage(mode === "paper" ? "Paper bot session queued safely; no real orders are submitted." : "Backtest validation queued");
     } catch (error: unknown) {
       setQueueMessage(error instanceof Error ? error.message : "Unable to queue validation");
     } finally {
@@ -194,11 +233,21 @@ export default function StrategyBuilder() {
             <span className="step-count">1 / 3</span>
           </div>
           <div className="template-grid">
+            <button
+              className={`template-card ${strategyType === "custom" ? "selected" : ""}`}
+              onClick={() => { setStrategyType("custom"); setName(`${symbol.replace("USDT", "")} Custom strategy`); setSaved(false); }}
+              type="button"
+            >
+              <span className="template-icon">⌘</span>
+              <strong>Custom rules</strong>
+              <span>Build your own entry and exit conditions.</span>
+              <small>TradingView-style configuration</small>
+            </button>
             {templates.map((candidate) => (
               <button
-                className={`template-card ${candidate.id === templateId ? "selected" : ""}`}
+                className={`template-card ${strategyType === "template" && candidate.id === templateId ? "selected" : ""}`}
                 key={candidate.id}
-                onClick={() => chooseTemplate(candidate.id, candidate.name)}
+                onClick={() => { setStrategyType("template"); chooseTemplate(candidate.id, candidate.name); }}
                 type="button"
               >
                 <span className="template-icon">{candidate.id === "momentum" ? "↗" : candidate.id === "mean-reversion" ? "∿" : "⌁"}</span>
@@ -208,6 +257,26 @@ export default function StrategyBuilder() {
               </button>
             ))}
           </div>
+          {strategyType === "custom" && (
+            <div className="rule-editor">
+              <div className="builder-heading"><div><p className="eyebrow">Custom logic</p><h2>Define entry and exit rules</h2></div><span className="step-count">No code required</span></div>
+              {(["longEntry", "shortEntry", "longExit", "shortExit"] as RuleSide[]).map((side) => (
+                <div className="rule-group" key={side}>
+                  <div className="rule-group-heading"><strong>{side === "longEntry" ? "Enter long when" : side === "shortEntry" ? "Enter short when" : side === "longExit" ? "Exit long when" : "Exit short when"}</strong><button className="text-button" type="button" onClick={() => addRule(side)}>+ Add condition</button></div>
+                  {rules[side].map((rule, index) => (
+                    <div className="rule-row" key={`${side}-${index}`}>
+                      <select value={rule.left} onChange={(event) => updateRule(side, index, { left: event.target.value as RuleValue })}><option value="price">Price</option><option value="volume">Volume</option><option value="sma">SMA</option><option value="ema">EMA</option><option value="rsi">RSI</option></select>
+                      {rule.left !== "price" && rule.left !== "volume" && <input aria-label="Indicator period" type="number" min="2" max="500" value={rule.period} onChange={(event) => updateRule(side, index, { period: event.target.value })} />}
+                      <select value={rule.operator} onChange={(event) => updateRule(side, index, { operator: event.target.value as Rule["operator"] })}><option value="crosses_above">crosses above</option><option value="crosses_below">crosses below</option><option value="greater_than">is greater than</option><option value="less_than">is less than</option></select>
+                      <input aria-label="Rule threshold" type="number" value={rule.right} onChange={(event) => updateRule(side, index, { right: event.target.value })} />
+                      <button className="row-action" type="button" onClick={() => removeRule(side, index)} aria-label="Remove condition">×</button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              <p className="field-help">Rules evaluate only on closed candles. No arbitrary code runs in the worker.</p>
+            </div>
+          )}
         </section>
 
         <section className="builder-card">
@@ -330,7 +399,7 @@ export default function StrategyBuilder() {
             disabled={queueing || !strategyId}
             type="button"
           >
-            {queueing ? "Queueing validation…" : `Queue ${mode} validation`}
+            {queueing ? "Starting…" : mode === "paper" ? "Start paper bot" : "Queue backtest"}
           </button>
           <p className="run-error">{queueMessage}</p>
         </section>

@@ -10,7 +10,7 @@ import { runBacktest, type BacktestResult } from "@/lib/validation/backtest";
 import { validateCandle } from "@/lib/validation/candles";
 import { validateFundingRates } from "@/lib/validation/funding";
 import { calculateValidationMetrics, type ValidationMetrics } from "@/lib/validation/metrics";
-import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
+import { createCustomStrategySignal, createTemplateSignal, type CustomStrategyConfig, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
 import type { TrailingExitOptions } from "@/lib/validation/trailing-exits";
 
 export type HistoricalBacktestRequest = TrailingExitOptions & {
@@ -27,6 +27,7 @@ export type HistoricalBacktestRequest = TrailingExitOptions & {
   maintenanceMarginRate?: number;
   minLiquidationDistancePct?: number;
   template: StrategyTemplate;
+  customStrategy?: CustomStrategyConfig;
   signalOptions?: SignalOptions;
   fundingRates?: FundingRate[];
 };
@@ -138,7 +139,9 @@ export async function runHistoricalBacktest(
     trailingTakeProfitPct: request.trailingTakeProfitPct,
     trailingTakeProfitActivationPct: request.trailingTakeProfitActivationPct,
     fundingRates,
-    signal: createTemplateSignal(request.template, request.signalOptions),
+    signal: request.customStrategy
+      ? createCustomStrategySignal(request.customStrategy)
+      : createTemplateSignal(request.template, request.signalOptions),
   });
   const outOfSamplePct = request.outOfSamplePct ?? 30;
   if (!Number.isFinite(outOfSamplePct) || outOfSamplePct < 10 || outOfSamplePct > 50) {

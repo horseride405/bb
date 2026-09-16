@@ -1,7 +1,7 @@
 import type { Json, Database } from "@/lib/supabase/database";
 import { runHistoricalBacktest } from "@/lib/validation/historical-backtest";
 import { reviewBacktestRisk } from "@/lib/validation/risk-gate";
-import type { PositionMode, StrategyTemplate } from "@/lib/validation/signals";
+import { parseCustomStrategyConfig, type PositionMode, type StrategyTemplate } from "@/lib/validation/signals";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runPaperValidation } from "@/workers/validation/paper-runner";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -29,6 +29,10 @@ function templateValue(record: Record<string, Json | undefined>): StrategyTempla
     throw new Error("Strategy template is not supported");
   }
   return value;
+}
+
+function customStrategyValue(record: Record<string, Json | undefined>) {
+  return record.strategyType === "custom" ? parseCustomStrategyConfig(record) : undefined;
 }
 
 function positionModeValue(record: Record<string, Json | undefined>): PositionMode {
@@ -68,13 +72,17 @@ export async function processNextValidationRun(client: WorkerClient = createServ
     const parameters = recordFromJson(run.parameters, "Run parameters");
     const config = recordFromJson(strategy.config, "Strategy config");
     const signalOptions = { positionMode: positionModeValue(config) };
+    const customStrategy = customStrategyValue(config);
+    const template = customStrategy ? "momentum" : templateValue(config);
     const trailingOptions = {
       trailingStopLossPct: optionalPercentValue(config, "trailingStopLossPct"),
       trailingTakeProfitPct: optionalPercentValue(config, "trailingTakeProfitPct"),
       trailingTakeProfitActivationPct: optionalPercentValue(config, "trailingTakeProfitActivationPct"),
     };
     const validationConfig = {
-      template: templateValue(config),
+      strategyType: customStrategy ? "custom" : "template",
+      template: customStrategy ? null : template,
+      customStrategy: customStrategy ?? null,
       positionMode: signalOptions.positionMode,
       trailingStopLossPct: trailingOptions.trailingStopLossPct ?? null,
       trailingTakeProfitPct: trailingOptions.trailingTakeProfitPct ?? null,
@@ -97,7 +105,8 @@ export async function processNextValidationRun(client: WorkerClient = createServ
         maxPositionNotional: riskPolicy.max_position_notional,
         minLiquidationDistancePct: riskPolicy.min_liquidation_distance_pct,
         ...trailingOptions,
-        template: templateValue(config),
+        template,
+        customStrategy,
         signalOptions,
       });
       const riskReview = reviewBacktestRisk(result.metrics, {
@@ -133,7 +142,8 @@ export async function processNextValidationRun(client: WorkerClient = createServ
       maxPositionNotional: riskPolicy.max_position_notional,
       minLiquidationDistancePct: riskPolicy.min_liquidation_distance_pct,
       ...trailingOptions,
-      template: templateValue(config),
+      template,
+      customStrategy,
       signalOptions,
     });
     const riskReview = reviewBacktestRisk(result.metrics, {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { normalizeBinanceSymbol } from "@/lib/market-data/binance";
 import type { Candle } from "@/lib/market-data/binance";
+import { createCustomStrategySignal, parseCustomStrategyConfig } from "@/lib/validation/signals";
 import { evaluateLiveExecutionGate } from "@/lib/execution/live-gate";
 import { runBacktest, type BacktestOptions } from "@/lib/validation/backtest";
 import { validateCandle } from "@/lib/validation/candles";
@@ -112,6 +113,21 @@ describe("bidirectional backtest safety", () => {
 });
 
 describe("validation safety boundaries", () => {
+  it("evaluates tenant-defined custom rules without executing code", () => {
+    const config = parseCustomStrategyConfig({
+      positionMode: "bidirectional",
+      conditionMode: "all",
+      longEntry: [{ left: { type: "price" }, operator: "crosses_above", right: { type: "sma", period: 2 } }],
+      shortEntry: [],
+      longExit: [],
+      shortExit: [],
+    });
+    const signal = createCustomStrategySignal(config);
+    expect(signal(candle(0, 1), 0)).toBe("flat");
+    expect(signal(candle(1, 1), 1)).toBe("flat");
+    expect(signal(candle(2, 3), 2)).toBe("long");
+  });
+
   it("normalizes valid perpetual and delivery symbols", () => {
     expect(normalizeBinanceSymbol(" btcusdt ")).toBe("BTCUSDT");
     expect(normalizeBinanceSymbol("BTCUSD_250627")).toBe("BTCUSD_250627");

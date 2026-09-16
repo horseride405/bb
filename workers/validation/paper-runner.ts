@@ -6,13 +6,14 @@ import {
 } from "@/lib/market-data/binance";
 import { startPaperTradingSession } from "@/lib/validation/paper-session";
 import { createPaperTradingEngine } from "@/lib/validation/paper-trading";
-import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
+import { createCustomStrategySignal, createTemplateSignal, type CustomStrategyConfig, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
 import type { TrailingExitOptions } from "@/lib/validation/trailing-exits";
 
 export type PaperValidationRequest = TrailingExitOptions & {
   symbol: string;
   interval: string;
   template: StrategyTemplate;
+  customStrategy?: CustomStrategyConfig;
   signalOptions?: SignalOptions;
   initialEquity: number;
   feeRateBps: number;
@@ -70,7 +71,9 @@ export async function runPaperValidation(
     trailingTakeProfitPct: request.trailingTakeProfitPct,
     trailingTakeProfitActivationPct: request.trailingTakeProfitActivationPct,
     fundingRates,
-    signal: createTemplateSignal(request.template, request.signalOptions),
+    signal: request.customStrategy
+      ? createCustomStrategySignal(request.customStrategy)
+      : createTemplateSignal(request.template, request.signalOptions),
   });
 
   let latestSnapshot: ReturnType<typeof engine.processCandle> | undefined;

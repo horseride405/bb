@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const workspaceId = new URL(request.url).searchParams.get("workspace_id");
   if (!workspaceId) return NextResponse.json({ error: "workspace_id is required" }, { status: 400 });
 
-  const [policyResult, accountsResult, approvalsResult, intentsResult, snapshotsResult, auditResult, heartbeatsResult] = await Promise.all([
+  const [policyResult, accountsResult, approvalsResult, intentsResult, snapshotsResult, auditResult, heartbeatsResult, ordersResult, fillsResult] = await Promise.all([
     supabase
       .from("risk_policies")
       .select("workspace_id, live_trading_enabled, live_emergency_stop_active, kill_switch_active")
@@ -52,9 +52,21 @@ export async function GET(request: Request) {
       .eq("workspace_id", workspaceId)
       .order("observed_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("execution_orders")
+      .select("id, execution_intent_id, account_connection_id, client_order_id, exchange_order_id, symbol, side, order_type, quantity, reduce_only, status, rejection_reason, submitted_at, completed_at, created_at")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    supabase
+      .from("execution_fills")
+      .select("id, execution_order_id, account_connection_id, exchange_trade_id, price, quantity, fee, fee_asset, executed_at")
+      .eq("workspace_id", workspaceId)
+      .order("executed_at", { ascending: false })
+      .limit(20),
   ]);
 
-  if (policyResult.error || accountsResult.error || approvalsResult.error || intentsResult.error || snapshotsResult.error || auditResult.error || heartbeatsResult.error) {
+  if (policyResult.error || accountsResult.error || approvalsResult.error || intentsResult.error || snapshotsResult.error || auditResult.error || heartbeatsResult.error || ordersResult.error || fillsResult.error) {
     return NextResponse.json({ error: "Unable to load live operations state" }, { status: 500 });
   }
   return NextResponse.json({
@@ -65,5 +77,7 @@ export async function GET(request: Request) {
     reconciliation: snapshotsResult.data,
     audit: auditResult.data,
     heartbeats: heartbeatsResult.data,
+    orders: ordersResult.data,
+    fills: fillsResult.data,
   });
 }

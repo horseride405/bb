@@ -60,6 +60,25 @@ type Operations = {
     consecutive_failures: number;
     error_message: string | null;
   }>;
+  orders: Array<{
+    id: string;
+    symbol: string;
+    side: string;
+    status: string;
+    quantity: number;
+    reduce_only: boolean;
+    rejection_reason: string | null;
+    created_at: string;
+  }>;
+  fills: Array<{
+    id: string;
+    execution_order_id: string;
+    exchange_trade_id: string;
+    price: number;
+    quantity: number;
+    fee: number;
+    executed_at: string;
+  }>;
 };
 
 type State = "loading" | "ready" | "auth" | "error";
@@ -213,6 +232,47 @@ export default function LiveOperationsDashboard() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="workflow-grid">
+        <article className="panel">
+          <div className="panel-heading">
+            <div><p className="eyebrow">Order state ledger</p><h2>{operations.orders.length} records</h2></div>
+            <span className="step-count">No submission adapter</span>
+          </div>
+          <div className="run-list">
+            {operations.orders.length === 0 && <div className="empty-state"><p>No order records exist.</p></div>}
+            {operations.orders.slice(0, 6).map((order) => (
+              <div className="run-entry" key={order.id}>
+                <div className="run-row">
+                  <span className="run-type run-backtest">{order.status}</span>
+                  <strong>{order.symbol} · {order.side}</strong>
+                  <span>{Number(order.quantity).toFixed(4)} · {order.reduce_only ? "reduce-only" : "not reduce-only"}</span>
+                </div>
+                {order.rejection_reason && <div className="run-error">{order.rejection_reason}</div>}
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="panel">
+          <div className="panel-heading">
+            <div><p className="eyebrow">Fill ledger</p><h2>{operations.fills.length} records</h2></div>
+            <span className="step-count">Reconciliation input</span>
+          </div>
+          <div className="run-list">
+            {operations.fills.length === 0 && <div className="empty-state"><p>No fill records exist.</p></div>}
+            {operations.fills.slice(0, 6).map((fill) => (
+              <div className="run-entry" key={fill.id}>
+                <div className="run-row">
+                  <strong>{fill.exchange_trade_id}</strong>
+                  <span>{Number(fill.quantity).toFixed(4)} @ {Number(fill.price).toFixed(4)}</span>
+                  <span>{new Date(fill.executed_at).toLocaleString()}</span>
+                </div>
+                <div className="run-error">Fee: {Number(fill.fee).toFixed(6)}</div>
+              </div>
+            ))}
+          </div>
+        </article>
       </section>
 
       <section className="panel">

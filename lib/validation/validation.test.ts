@@ -13,6 +13,10 @@ import { classifyWorkerHeartbeat } from "@/workers/execution/heartbeat";
 import { retryDelayMs, retryWithBackoff } from "@/workers/execution/retry";
 import { runWorkerCycle } from "@/workers/execution/worker-cycle";
 import { runWorkerSupervisor } from "@/workers/execution/supervisor";
+import {
+  assertExecutionOrderTransition,
+  canTransitionExecutionOrder,
+} from "@/workers/execution/order-state";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -355,5 +359,15 @@ describe("Phase 2 execution safety", () => {
     });
     expect(cycles).toBe(1);
     expect(shutdown).toBe(true);
+  });
+
+  it("allows only monotonic execution-order lifecycle transitions", () => {
+    expect(canTransitionExecutionOrder("pending", "submitted")).toBe(true);
+    expect(canTransitionExecutionOrder("submitted", "partially_filled")).toBe(true);
+    expect(canTransitionExecutionOrder("partially_filled", "filled")).toBe(true);
+    expect(canTransitionExecutionOrder("filled", "submitted")).toBe(false);
+    expect(() => assertExecutionOrderTransition("cancelled", "filled")).toThrow(
+      "Invalid execution order transition",
+    );
   });
 });

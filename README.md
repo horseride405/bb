@@ -42,6 +42,7 @@ The first production architecture keeps the dashboard and control plane on Verce
 - Worker account-health and heartbeat transitions are recorded as identifier-only audit events, including recovery transitions.
 - `runWorkerCycle()` records success/failure heartbeat transitions around bounded worker operations while preserving the original operation error.
 - `runWorkerSupervisor()` propagates shutdown signals, backs off repeated cycle failures, and bounds cleanup time before worker exit.
+- Execution order/fill state is modeled with worker-only, tenant-consistent records and monotonic lifecycle validation; this is persistence groundwork, not Binance order submission.
 - Controlled-live readiness is evaluated worker-side with explicit blockers; it is informational only and never authorizes order submission.
 
 Queued runs are claimed atomically through `claim_next_validation_run()` by a separate worker process. `workers/validation/runner.ts` executes supported historical backtests and finalizes runs through service-role-only RPCs; it never places live Binance orders.

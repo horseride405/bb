@@ -323,6 +323,78 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["execution_worker_heartbeats"]["Insert"]>;
         Relationships: [];
       };
+      execution_orders: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          execution_intent_id: string;
+          account_connection_id: string;
+          client_order_id: string;
+          exchange_order_id: string | null;
+          symbol: string;
+          side: "buy" | "sell";
+          order_type: "market" | "limit";
+          quantity: number;
+          reduce_only: boolean;
+          status: "pending" | "submitted" | "partially_filled" | "filled" | "cancelled" | "rejected";
+          rejection_reason: string | null;
+          submitted_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          execution_intent_id: string;
+          account_connection_id: string;
+          client_order_id: string;
+          exchange_order_id?: string | null;
+          symbol: string;
+          side: "buy" | "sell";
+          order_type: "market" | "limit";
+          quantity: number;
+          reduce_only?: boolean;
+          status?: "pending" | "submitted" | "partially_filled" | "filled" | "cancelled" | "rejected";
+          rejection_reason?: string | null;
+          submitted_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["execution_orders"]["Insert"]>;
+        Relationships: [];
+      };
+      execution_fills: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          execution_order_id: string;
+          account_connection_id: string;
+          exchange_trade_id: string;
+          price: number;
+          quantity: number;
+          fee: number;
+          fee_asset: string | null;
+          executed_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          execution_order_id: string;
+          account_connection_id: string;
+          exchange_trade_id: string;
+          price: number;
+          quantity: number;
+          fee?: number;
+          fee_asset?: string | null;
+          executed_at: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["execution_fills"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -373,6 +445,7 @@ export type Database = {
       reconciliation_status: "healthy" | "mismatch" | "stale" | "error";
       execution_intent_status: "pending" | "blocked" | "preflighted" | "cancelled";
       execution_worker_status: "healthy" | "degraded" | "offline";
+      execution_order_status: "pending" | "submitted" | "partially_filled" | "filled" | "cancelled" | "rejected";
     };
     CompositeTypes: Record<string, never>;
   };

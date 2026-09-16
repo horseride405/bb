@@ -31,6 +31,9 @@ The first production architecture keeps the dashboard and control plane on Verce
 - `POST /api/risk/validate` checks proposed leverage, notional, loss, and position counts before execution.
 - `GET/POST /api/strategies/:id/runs` lists or queues paper/backtest validation runs for the separate validation worker.
 - `GET /api/market-data/candles` fetches normalized public Binance Futures candles for authenticated paper/backtest clients; historical requests may provide bounded `startTime` and `endTime` timestamps.
+- `GET/POST /api/live/accounts` manages tenant-visible connection metadata only; raw Binance credentials are never accepted by this API.
+- `POST/DELETE /api/live/approvals` manages expiring, revocable admin approvals bound to a strategy and account.
+- `POST /api/live/emergency-stop` controls the admin emergency stop, which defaults active.
 
 Queued runs are claimed atomically through `claim_next_validation_run()` by a separate worker process. `workers/validation/runner.ts` executes supported historical backtests and finalizes runs through service-role-only RPCs; it never places live Binance orders.
 
@@ -40,4 +43,4 @@ Validation metric calculations live in `lib/validation/metrics.ts` and are inten
 
 ## Safety boundary
 
-Live trading must remain disabled until tenant isolation, encrypted API credentials, paper-trading validation, risk limits, reconciliation, audit logs, and an emergency kill switch are implemented and tested.
+Live trading must remain disabled until tenant isolation, encrypted API credentials, paper-trading validation, risk limits, reconciliation, audit logs, and an emergency kill switch are implemented and tested. Phase 2 now has the control-plane metadata and worker contracts for these boundaries, but it still has no signed order submission.

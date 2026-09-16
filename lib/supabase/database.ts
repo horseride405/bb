@@ -169,6 +169,20 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["binance_account_connections"]["Insert"]>;
         Relationships: [];
       };
+      binance_account_secrets: {
+        Row: {
+          account_connection_id: string;
+          secret_ref: string;
+          created_at: string;
+        };
+        Insert: {
+          account_connection_id: string;
+          secret_ref: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["binance_account_secrets"]["Insert"]>;
+        Relationships: [];
+      };
       live_strategy_approvals: {
         Row: {
           id: string;
@@ -255,6 +269,30 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["execution_intents"]["Insert"]>;
         Relationships: [];
       };
+      audit_events: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          actor_user_id: string | null;
+          event_type: string;
+          resource_type: string;
+          resource_id: string | null;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          actor_user_id?: string | null;
+          event_type: string;
+          resource_type: string;
+          resource_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["audit_events"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -282,6 +320,16 @@ export type Database = {
           failure_message: string;
         };
         Returns: Database["public"]["Tables"]["strategy_runs"]["Row"][];
+      };
+      record_audit_event: {
+        Args: {
+          target_workspace_id: string;
+          target_event_type: string;
+          target_resource_type: string;
+          target_resource_id: string | null;
+          target_metadata?: Json;
+        };
+        Returns: Database["public"]["Tables"]["audit_events"]["Row"][];
       };
     };
     Enums: {

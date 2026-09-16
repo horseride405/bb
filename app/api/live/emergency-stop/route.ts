@@ -26,5 +26,12 @@ export async function POST(request: Request) {
     .select("workspace_id, live_emergency_stop_active, live_trading_enabled, kill_switch_active")
     .single();
   if (error || !data) return NextResponse.json({ error: "Only workspace admins can change the emergency stop" }, { status: 403 });
+  await supabase.rpc("record_audit_event", {
+    target_workspace_id: body.workspace_id,
+    target_event_type: body.active ? "live_emergency_stop_activated" : "live_emergency_stop_cleared",
+    target_resource_type: "risk_policy",
+    target_resource_id: null,
+    target_metadata: { active: body.active },
+  });
   return NextResponse.json({ emergency_stop_active: data.live_emergency_stop_active, live_trading_enabled: data.live_trading_enabled });
 }

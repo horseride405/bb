@@ -62,6 +62,13 @@ export async function POST(request: Request) {
     .select("id, strategy_id, account_connection_id, approved_at, expires_at, revoked_at")
     .single();
   if (error) return NextResponse.json({ error: "Only workspace admins can approve live strategy access" }, { status: 403 });
+  await supabase.rpc("record_audit_event", {
+    target_workspace_id: body.workspace_id,
+    target_event_type: "live_approval_granted",
+    target_resource_type: "strategy",
+    target_resource_id: body.strategy_id,
+    target_metadata: { account_connection_id: body.account_connection_id, expires_at: new Date(expiresAt).toISOString() },
+  });
   return NextResponse.json({ approval: data }, { status: 201 });
 }
 
@@ -94,5 +101,12 @@ export async function DELETE(request: Request) {
     .select("id, revoked_at")
     .single();
   if (error || !data) return NextResponse.json({ error: "Approval not found or admin access denied" }, { status: 404 });
+  await supabase.rpc("record_audit_event", {
+    target_workspace_id: body.workspace_id,
+    target_event_type: "live_approval_revoked",
+    target_resource_type: "strategy",
+    target_resource_id: body.strategy_id,
+    target_metadata: { account_connection_id: body.account_connection_id },
+  });
   return NextResponse.json({ approval: data });
 }

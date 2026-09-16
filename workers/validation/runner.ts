@@ -50,7 +50,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
   try {
     const [{ data: strategy, error: strategyError }, { data: riskPolicy, error: riskError }] = await Promise.all([
       client.from("strategies").select("config").eq("id", run.strategy_id).single(),
-      client.from("risk_policies").select("max_leverage, max_position_notional, max_daily_loss_pct, max_drawdown_pct, min_liquidation_distance_pct").eq("workspace_id", run.workspace_id).single(),
+      client.from("risk_policies").select("max_leverage, max_position_notional, max_daily_loss_pct, max_drawdown_pct, max_trades_per_hour, min_liquidation_distance_pct").eq("workspace_id", run.workspace_id).single(),
     ]);
     if (strategyError || !strategy) throw new Error("Unable to load claimed strategy");
     if (riskError || !riskPolicy) throw new Error("Unable to load workspace risk policy");
@@ -75,11 +75,12 @@ export async function processNextValidationRun(client: WorkerClient = createServ
       const riskReview = reviewBacktestRisk(result.metrics, {
         maxDailyLossPct: riskPolicy.max_daily_loss_pct,
         maxDrawdownPct: riskPolicy.max_drawdown_pct,
+        maxTradesPerHour: riskPolicy.max_trades_per_hour,
       }, {
         initialEquity: numberValue(parameters, "initialEquity"),
         curve: result.equityCurve,
         times: result.equityCurveTimes,
-      });
+      }, numberValue(parameters, "durationMs"));
       const completedResult = { ...result, riskReview };
       const { error: completionError } = await client.rpc("complete_validation_run", {
         run_id: run.id,
@@ -106,11 +107,12 @@ export async function processNextValidationRun(client: WorkerClient = createServ
     const riskReview = reviewBacktestRisk(result.metrics, {
       maxDailyLossPct: riskPolicy.max_daily_loss_pct,
       maxDrawdownPct: riskPolicy.max_drawdown_pct,
+      maxTradesPerHour: riskPolicy.max_trades_per_hour,
     }, {
       initialEquity: numberValue(parameters, "initialEquity"),
-      curve: result.equityCurve,
-      times: result.equityCurveTimes,
-    });
+        curve: result.equityCurve,
+        times: result.equityCurveTimes,
+      }, numberValue(parameters, "endTime") - numberValue(parameters, "startTime"));
 
     const { error: completionError } = await client.rpc("complete_validation_run", {
       run_id: run.id,

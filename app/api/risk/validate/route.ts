@@ -11,6 +11,8 @@ type RiskInput = {
   open_positions?: unknown;
   gross_exposure_notional?: unknown;
   concentration_exposure_notional?: unknown;
+  trades_in_window?: unknown;
+  window_hours?: unknown;
   mark_price?: unknown;
   liquidation_price?: unknown;
 };
@@ -71,12 +73,18 @@ export async function POST(request: Request) {
     (body.concentration_exposure_notional !== undefined &&
       (typeof body.concentration_exposure_notional !== "number" ||
         !Number.isFinite(body.concentration_exposure_notional))) ||
+    (body.trades_in_window !== undefined &&
+      (typeof body.trades_in_window !== "number" || !Number.isFinite(body.trades_in_window))) ||
+    (body.window_hours !== undefined &&
+      (typeof body.window_hours !== "number" || !Number.isFinite(body.window_hours))) ||
     body.leverage < 0 ||
     body.position_notional < 0 ||
     body.daily_loss_pct < 0 ||
     body.open_positions < 0
     || (typeof body.gross_exposure_notional === "number" && body.gross_exposure_notional < 0)
     || (typeof body.concentration_exposure_notional === "number" && body.concentration_exposure_notional < 0)
+    || (typeof body.trades_in_window === "number" && body.trades_in_window < 0)
+    || (typeof body.window_hours === "number" && body.window_hours <= 0)
   ) {
     return NextResponse.json({ error: "Risk inputs must be finite and non-negative" }, { status: 400 });
   }
@@ -111,6 +119,13 @@ export async function POST(request: Request) {
   if (concentrationExposureNotional > maxGrossExposureNotional) {
     violations.push("concentration_exposure_exceeds_limit");
   }
+  const tradeFrequencyPerHour =
+    typeof body.trades_in_window === "number" && typeof body.window_hours === "number"
+      ? body.trades_in_window / body.window_hours
+      : null;
+  if (tradeFrequencyPerHour !== null && tradeFrequencyPerHour > policy.max_trades_per_hour) {
+    violations.push("trade_frequency_exceeds_limit");
+  }
   let liquidationDistancePct: number | null = null;
   if (hasLiquidationInputs) {
     liquidationDistancePct =
@@ -131,6 +146,8 @@ export async function POST(request: Request) {
     gross_exposure_notional: grossExposureNotional,
     concentration_exposure_notional: concentrationExposureNotional,
     max_gross_exposure_notional: maxGrossExposureNotional,
+    trade_frequency_per_hour: tradeFrequencyPerHour,
+    max_trades_per_hour: policy.max_trades_per_hour,
     violations,
   });
 }

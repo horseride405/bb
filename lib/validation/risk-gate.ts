@@ -3,6 +3,7 @@ import type { ValidationMetrics } from "@/lib/validation/metrics";
 export type BacktestRiskPolicy = {
   maxDailyLossPct: number;
   maxDrawdownPct: number;
+  maxTradesPerHour: number;
 };
 
 export type RiskReview = {
@@ -11,10 +12,12 @@ export type RiskReview = {
   observed: {
     maxDailyLossPct: number;
     maxDrawdownPct: number;
+    tradesPerHour: number;
   };
   limits: {
     maxDailyLossPct: number;
     maxDrawdownPct: number;
+    tradesPerHour: number;
   };
 };
 
@@ -48,6 +51,7 @@ export function reviewBacktestRisk(
     curve: [],
     times: [],
   },
+  durationMs?: number,
 ): RiskReview {
   const maxDailyLossPct = calculateMaxDailyLossPct(equity.initialEquity, equity.curve, equity.times);
   const violations = [];
@@ -61,11 +65,22 @@ export function reviewBacktestRisk(
       `Maximum daily loss ${maxDailyLossPct.toFixed(2)}% exceeds the ${policy.maxDailyLossPct.toFixed(2)}% workspace limit`,
     );
   }
+  const observedDurationMs = durationMs ?? Math.max((equity.times.at(-1) ?? 0) - (equity.times[0] ?? 0), 60_000);
+  const tradesPerHour = metrics.tradeCount / (observedDurationMs / (60 * 60 * 1_000));
+  if (tradesPerHour > policy.maxTradesPerHour) {
+    violations.push(
+      `Trade frequency ${tradesPerHour.toFixed(2)}/hour exceeds the ${policy.maxTradesPerHour.toFixed(2)}/hour workspace limit`,
+    );
+  }
 
   return {
     passed: violations.length === 0,
     violations,
-    observed: { maxDailyLossPct, maxDrawdownPct: metrics.maxDrawdownPct },
-    limits: { maxDailyLossPct: policy.maxDailyLossPct, maxDrawdownPct: policy.maxDrawdownPct },
+    observed: { maxDailyLossPct, maxDrawdownPct: metrics.maxDrawdownPct, tradesPerHour },
+    limits: {
+      maxDailyLossPct: policy.maxDailyLossPct,
+      maxDrawdownPct: policy.maxDrawdownPct,
+      tradesPerHour: policy.maxTradesPerHour,
+    },
   };
 }

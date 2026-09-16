@@ -54,6 +54,7 @@ export async function PATCH(request: Request) {
     "max_drawdown_pct",
     "max_open_positions",
     "min_liquidation_distance_pct",
+    "max_trades_per_hour",
   ] as const;
   const updates: Partial<
     Record<

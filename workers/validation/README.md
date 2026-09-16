@@ -46,7 +46,7 @@ The worker uses `lib/supabase/service.ts`, which disables session persistence an
 
 Metrics must be calculated from actual historical candles or live streamed paper-trading events. The worker must not populate successful results from placeholders or predicted values.
 
-Historical backtests should request explicit candle timestamps through the authenticated market-data boundary. Requests are bounded to a 90-day range and a maximum of 1,500 candles; workers should paginate deliberately rather than issuing unbounded data requests.
+Historical backtests should request explicit candle timestamps through the authenticated market-data boundary. Requests are bounded to a 90-day range; the worker paginates Binance's 1,500-candle response limit deliberately, deduplicates pages, and rejects pagination that stops making progress.
 
 Queued runs use normalized parameters: `symbol`, `interval`, `initialEquity`, `feeRateBps`, and `slippageBps`. Backtests additionally require `startTime` and `endTime`; the API rejects missing or non-reproducible ranges before queue insertion.
 
@@ -54,11 +54,13 @@ The pure `runBacktest` core accepts real normalized candles plus a strategy sign
 
 `createTemplateSignal` supplies no-lookahead callbacks for the current Momentum, Mean Reversion, and Breakout templates. Each stored strategy can select `bidirectional`, `long-only`, or `short-only`; the worker passes that position mode into both paper and historical validation. It then persists only the resulting metrics and trade data.
 
-`runHistoricalBacktest` is the worker-facing composition boundary: it fetches at most 1,500 candles for the requested bounded window, selects the template signal, runs the simulator, and returns versioned metadata plus metrics. Invoke it only after a queue claim; never call it from a browser or a Vercel request handler.
+`runHistoricalBacktest` is the worker-facing composition boundary: it fetches the complete bounded window through paginated Binance candle requests, selects the template signal, runs the simulator, and returns versioned metadata plus metrics. Invoke it only after a queue claim; never call it from a browser or a Vercel request handler.
 
 `workers/validation/runner.ts` provides the first queue loop. `processNextValidationRun()` claims one run, loads its strategy and workspace risk policy, executes bounded paper sessions or historical backtests, and finalizes the run. Paper sessions default to 60 seconds and remain bounded by the normalized `durationMs` parameter.
 
 Completed backtests and paper sessions persist timestamped equity curves and closed-trade records alongside metrics. They also include a `riskReview` comparing measured maximum drawdown and maximum UTC-day loss with the workspace policy. A passing review is evidence for the next gate only; it does not authorize live trading. Liquidation distance, reconciliation, and other execution gates remain separate requirements.
+
+The authenticated `/api/risk/validate` boundary accepts an optional long/short position side plus mark and liquidation prices. When supplied, it calculates direction-aware liquidation distance and rejects positions below `min_liquidation_distance_pct`; validation runs do not infer liquidation prices from candles.
 
 `connectBinanceClosedCandleStream` is the public market-data input boundary for the future paper engine. It emits only closed, normalized candles and returns a cleanup function. It must run in the worker deployment, never in browser code; reconnect policy and paper-position state belong to the paper worker, and this stream never places orders.
 

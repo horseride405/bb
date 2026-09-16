@@ -1,4 +1,4 @@
-import { fetchBinanceCandles, maxHistoricalRangeMs, type Candle } from "@/lib/market-data/binance";
+import { fetchBinanceCandleRange, maxHistoricalRangeMs, type Candle } from "@/lib/market-data/binance";
 import { runBacktest, type BacktestResult } from "@/lib/validation/backtest";
 import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
 
@@ -30,7 +30,6 @@ export type HistoricalBacktestResult = BacktestResult & {
 type CandleFetcher = (
   symbol: string,
   interval: string,
-  limit: number,
   query: { startTime: number; endTime: number },
 ) => Promise<Candle[]>;
 
@@ -48,10 +47,10 @@ function validateWindow(startTime: number, endTime: number) {
 
 export async function runHistoricalBacktest(
   request: HistoricalBacktestRequest,
-  fetchCandles: CandleFetcher = fetchBinanceCandles,
+  fetchCandles: CandleFetcher = fetchBinanceCandleRange,
 ): Promise<HistoricalBacktestResult> {
   validateWindow(request.startTime, request.endTime);
-  const candles = await fetchCandles(request.symbol, request.interval, 1500, {
+  const candles = await fetchCandles(request.symbol, request.interval, {
     startTime: request.startTime,
     endTime: request.endTime,
   });

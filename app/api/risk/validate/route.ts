@@ -9,6 +9,8 @@ type RiskInput = {
   position_notional?: unknown;
   daily_loss_pct?: unknown;
   open_positions?: unknown;
+  mark_price?: unknown;
+  liquidation_price?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -41,6 +43,22 @@ export async function POST(request: Request) {
   ) {
     return NextResponse.json({ error: "Workspace and numeric risk inputs are required" }, { status: 400 });
   }
+  const hasLiquidationInputs = body.mark_price !== undefined || body.liquidation_price !== undefined;
+  if (
+    hasLiquidationInputs &&
+    (body.position_side !== "long" && body.position_side !== "short" ||
+      typeof body.mark_price !== "number" ||
+      typeof body.liquidation_price !== "number" ||
+      !Number.isFinite(body.mark_price) ||
+      !Number.isFinite(body.liquidation_price) ||
+      body.mark_price <= 0 ||
+      body.liquidation_price <= 0)
+  ) {
+    return NextResponse.json(
+      { error: "Liquidation checks require a long/short side and positive mark/liquidation prices" },
+      { status: 400 },
+    );
+  }
   if (
     !Number.isFinite(body.leverage) ||
     !Number.isFinite(body.position_notional) ||
@@ -69,11 +87,23 @@ export async function POST(request: Request) {
   if (body.position_notional > policy.max_position_notional) violations.push("position_notional_exceeds_limit");
   if (body.daily_loss_pct > policy.max_daily_loss_pct) violations.push("daily_loss_exceeds_limit");
   if (body.open_positions > policy.max_open_positions) violations.push("open_positions_exceeds_limit");
+  let liquidationDistancePct: number | null = null;
+  if (hasLiquidationInputs) {
+    liquidationDistancePct =
+      body.position_side === "long"
+        ? ((body.mark_price as number - (body.liquidation_price as number)) / (body.mark_price as number)) * 100
+        : (((body.liquidation_price as number) - (body.mark_price as number)) / (body.mark_price as number)) * 100;
+    if (liquidationDistancePct <= 0 || liquidationDistancePct < policy.min_liquidation_distance_pct) {
+      violations.push("liquidation_distance_below_limit");
+    }
+  }
 
   return NextResponse.json({
     allowed: violations.length === 0,
     live_trading_enabled: policy.live_trading_enabled,
     position_side: body.position_side ?? "net",
+    liquidation_distance_pct: liquidationDistancePct,
+    min_liquidation_distance_pct: policy.min_liquidation_distance_pct,
     violations,
   });
 }

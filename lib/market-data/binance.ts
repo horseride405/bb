@@ -118,3 +118,41 @@ export async function fetchBinanceCandles(
     clearTimeout(timeout);
   }
 }
+
+export async function fetchBinanceCandleRange(
+  symbol: string,
+  interval: string,
+  query: { startTime: number; endTime: number },
+): Promise<Candle[]> {
+  if (!Number.isInteger(query.startTime) || !Number.isInteger(query.endTime)) {
+    throw new Error("Historical candle timestamps are invalid");
+  }
+  const durationMs = intervalDurationMs[interval];
+  if (!durationMs) throw new Error("Unsupported candle interval");
+
+  const candles: Candle[] = [];
+  let nextStartTime = query.startTime;
+  for (let page = 0; page < 1_000 && nextStartTime < query.endTime; page += 1) {
+    const batch = await fetchBinanceCandles(symbol, interval, 1_500, {
+      startTime: nextStartTime,
+      endTime: query.endTime,
+    });
+    const filtered = batch.filter(
+      (candle) => candle.openTime >= query.startTime && candle.openTime < query.endTime,
+    );
+    if (filtered.length === 0) break;
+
+    const lastCandle = filtered.at(-1);
+    if (!lastCandle || lastCandle.openTime < nextStartTime) {
+      throw new Error("Binance historical pagination made no progress");
+    }
+    candles.push(...filtered.filter((candle) => candles.at(-1)?.openTime !== candle.openTime));
+    nextStartTime = lastCandle.openTime + durationMs;
+    if (batch.length < 1_500) break;
+  }
+
+  if (nextStartTime < query.endTime) {
+    throw new Error("Binance historical pagination exceeded its safety limit");
+  }
+  return candles;
+}

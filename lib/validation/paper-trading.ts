@@ -1,0 +1,139 @@
+import type { Candle } from "@/lib/market-data/binance";
+import {
+  type BacktestSignal,
+  type BacktestTrade,
+} from "@/lib/validation/backtest";
+import { calculateValidationMetrics, type ValidationMetrics } from "@/lib/validation/metrics";
+
+export type PaperTradingOptions = {
+  initialEquity: number;
+  feeRateBps: number;
+  slippageBps: number;
+  maxLeverage: number;
+  maxPositionNotional?: number;
+  signal: (candle: Candle, index: number) => BacktestSignal;
+};
+
+export type PaperTradingSnapshot = {
+  candle: Candle;
+  equity: number;
+  positionOpen: boolean;
+  metrics: ValidationMetrics;
+};
+
+type Position = {
+  entryPrice: number;
+  entryTime: number;
+  entryFee: number;
+  quantity: number;
+};
+
+function validateCandle(candle: Candle, previousCandle?: Candle) {
+  if (
+    !Number.isFinite(candle.openTime) ||
+    !Number.isFinite(candle.closeTime) ||
+    !Number.isFinite(candle.close) ||
+    candle.close <= 0
+  ) {
+    throw new Error("Paper candles must contain positive finite close prices and timestamps");
+  }
+  if (previousCandle && candle.openTime <= previousCandle.openTime) {
+    throw new Error("Paper candles must be sorted by increasing open time");
+  }
+}
+
+export function createPaperTradingEngine(options: PaperTradingOptions) {
+  if (!Number.isFinite(options.initialEquity) || options.initialEquity <= 0) {
+    throw new Error("Paper initial equity must be positive");
+  }
+  if (!Number.isFinite(options.feeRateBps) || options.feeRateBps < 0) {
+    throw new Error("Paper fee rate must be non-negative");
+  }
+  if (!Number.isFinite(options.slippageBps) || options.slippageBps < 0) {
+    throw new Error("Paper slippage must be non-negative");
+  }
+  if (!Number.isFinite(options.maxLeverage) || options.maxLeverage < 1) {
+    throw new Error("Paper leverage must be at least 1");
+  }
+
+  const feeRate = options.feeRateBps / 10_000;
+  const slippageRate = options.slippageBps / 10_000;
+  let cash = options.initialEquity;
+  let position: Position | undefined;
+  let lastCandle: Candle | undefined;
+  let closed = false;
+  const equityCurve: number[] = [];
+  const trades: BacktestTrade[] = [];
+
+  const closePosition = (candle: Candle) => {
+    if (!position) return;
+    const exitPrice = candle.close * (1 - slippageRate);
+    const grossPnl = (exitPrice - position.entryPrice) * position.quantity;
+    const exitFee = exitPrice * position.quantity * feeRate;
+    cash += grossPnl - exitFee;
+    trades.push({
+      pnl: grossPnl - position.entryFee - exitFee,
+      fees: position.entryFee + exitFee,
+      funding: 0,
+      entryTime: position.entryTime,
+      exitTime: candle.closeTime,
+      entryPrice: position.entryPrice,
+      exitPrice,
+      quantity: position.quantity,
+    });
+    position = undefined;
+  };
+
+  const createSnapshot = (candle: Candle): PaperTradingSnapshot => ({
+    candle,
+    equity: equityCurve.at(-1) ?? cash,
+    positionOpen: position !== undefined,
+    metrics: calculateValidationMetrics(options.initialEquity, equityCurve, trades),
+  });
+
+  const processCandle = (candle: Candle): PaperTradingSnapshot => {
+    if (closed) throw new Error("Paper trading engine is closed");
+    validateCandle(candle, lastCandle);
+    const signal = options.signal(candle, equityCurve.length);
+    if (signal !== "long" && signal !== "flat") {
+      throw new Error("Paper signal must be long or flat");
+    }
+
+    if (position && signal === "flat") closePosition(candle);
+    if (!position && signal === "long") {
+      const availableEquity = Math.max(cash, 0);
+      const notional = Math.min(
+        availableEquity * options.maxLeverage,
+        options.maxPositionNotional ?? Number.POSITIVE_INFINITY,
+      );
+      const entryPrice = candle.close * (1 + slippageRate);
+      const quantity = notional / entryPrice;
+      const entryFee = notional * feeRate;
+      if (quantity > 0 && entryFee < availableEquity) {
+        cash -= entryFee;
+        position = { entryPrice, entryTime: candle.closeTime, entryFee, quantity };
+      }
+    }
+
+    const equity = position ? cash + (candle.close - position.entryPrice) * position.quantity : cash;
+    equityCurve.push(equity);
+    lastCandle = candle;
+    return createSnapshot(candle);
+  };
+
+  const finish = (): PaperTradingSnapshot | null => {
+    if (closed) return lastCandle ? createSnapshot(lastCandle) : null;
+    closed = true;
+    if (!lastCandle) return null;
+    closePosition(lastCandle);
+    if (equityCurve.length > 0) equityCurve[equityCurve.length - 1] = cash;
+    return createSnapshot(lastCandle);
+  };
+
+  return {
+    processCandle,
+    finish,
+    getMetrics: () => calculateValidationMetrics(options.initialEquity, equityCurve, trades),
+    isClosed: () => closed,
+  };
+}

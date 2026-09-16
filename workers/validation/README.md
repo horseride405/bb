@@ -61,3 +61,5 @@ The pure `runLongOnlyBacktest` core accepts real normalized candles plus a strat
 Completed backtests also include a `riskReview` comparing measured maximum drawdown with the workspace policy. A passing review is evidence for the next gate only; it does not authorize live trading. Daily loss, liquidation distance, reconciliation, and paper-trading gates remain separate requirements.
 
 `connectBinanceClosedCandleStream` is the public market-data input boundary for the future paper engine. It emits only closed, normalized candles and returns a cleanup function. It must run in the worker deployment, never in browser code; reconnect policy and paper-position state belong to the paper worker, and this stream never places orders.
+
+`createPaperTradingEngine` provides the in-memory paper-position boundary for that worker. It consumes the stream's closed candles, reuses a deterministic signal callback, models fees/slippage/leverage, and exposes metrics without submitting Binance orders. Persistence, reconnect handling, stale-data checks, and a live-data paper queue remain worker responsibilities.

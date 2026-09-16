@@ -145,6 +145,20 @@ export type Database = {
         Args: Record<string, never>;
         Returns: Database["public"]["Tables"]["strategy_runs"]["Row"][];
       };
+      complete_validation_run: {
+        Args: {
+          run_id: string;
+          run_results: Json;
+        };
+        Returns: Database["public"]["Tables"]["strategy_runs"]["Row"][];
+      };
+      fail_validation_run: {
+        Args: {
+          run_id: string;
+          failure_message: string;
+        };
+        Returns: Database["public"]["Tables"]["strategy_runs"]["Row"][];
+      };
     };
     Enums: {
       workspace_role: "owner" | "admin" | "trader" | "viewer";

@@ -207,3 +207,40 @@ $$;
 
 revoke execute on function public.claim_next_validation_run() from public;
 grant execute on function public.claim_next_validation_run() to service_role;
+
+create or replace function public.complete_validation_run(run_id uuid, run_results jsonb)
+returns setof public.strategy_runs
+language sql
+security definer
+set search_path = public
+as $$
+  update public.strategy_runs
+  set status = 'completed',
+      results = run_results,
+      error_message = null,
+      completed_at = now()
+  where id = run_id
+    and status = 'running'
+  returning *;
+$$;
+
+revoke execute on function public.complete_validation_run(uuid, jsonb) from public;
+grant execute on function public.complete_validation_run(uuid, jsonb) to service_role;
+
+create or replace function public.fail_validation_run(run_id uuid, failure_message text)
+returns setof public.strategy_runs
+language sql
+security definer
+set search_path = public
+as $$
+  update public.strategy_runs
+  set status = 'failed',
+      error_message = left(failure_message, 2000),
+      completed_at = now()
+  where id = run_id
+    and status = 'running'
+  returning *;
+$$;
+
+revoke execute on function public.fail_validation_run(uuid, text) from public;
+grant execute on function public.fail_validation_run(uuid, text) to service_role;

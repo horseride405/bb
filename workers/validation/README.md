@@ -9,6 +9,7 @@ The validation worker is a separate long-running process. It must not run inside
 3. Load the strategy configuration and the requested `parameters`.
 4. Use the run type to select the paper-trading or historical-data engine.
 5. Persist either metrics in `results` and `completed_at`, or a safe diagnostic in `error_message` with `failed` status.
+6. Use `complete_validation_run(run_id, run_results)` or `fail_validation_run(run_id, failure_message)` for the terminal transition. Both functions only transition a currently `running` run and are service-role-only.
 
 The worker must be idempotent, preserve the tenant and strategy IDs from the claimed row, and never place Binance orders. Live execution requires a separate risk-approved execution service and is intentionally outside this contract.
 

@@ -49,6 +49,8 @@ The first production architecture keeps the dashboard and control plane on Verce
 - A final manual-enablement checklist reports missing production prerequisites and always returns disabled; deployment operators must complete provider integration and explicit approval outside this repository before live trading can be considered.
 - Phase 3 begins with tenant-scoped subscription and usage-period tables plus provider-neutral plan entitlements; billing-provider webhooks and payment capture are not fabricated or enabled.
 - Phase 3 also adds admin-managed workspace invitations, service-role-only billing-provider event storage for idempotent webhook processing, usage-limit helpers, and an authenticated billing summary endpoint.
+- Invitations are one-time, hashed, role-limited, expiry-bound, and accepted only when the authenticated email matches; no invite token is stored in plaintext.
+- Admins can list members and update non-owner roles through the tenant-scoped members API; owner promotion/removal is deliberately outside this pass.
 - Controlled-live readiness is evaluated worker-side with explicit blockers; it is informational only and never authorizes order submission.
 
 Queued runs are claimed atomically through `claim_next_validation_run()` by a separate worker process. `workers/validation/runner.ts` executes supported historical backtests and finalizes runs through service-role-only RPCs; it never places live Binance orders.

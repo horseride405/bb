@@ -507,6 +507,13 @@ export type Database = {
         };
         Returns: Database["public"]["Tables"]["workspaces"]["Row"][];
       };
+      accept_workspace_invitation: {
+        Args: {
+          invitation_id: string;
+          invitation_token_digest: string;
+        };
+        Returns: Database["public"]["Tables"]["workspace_members"]["Row"][];
+      };
       claim_next_validation_run: {
         Args: Record<string, never>;
         Returns: Database["public"]["Tables"]["strategy_runs"]["Row"][];

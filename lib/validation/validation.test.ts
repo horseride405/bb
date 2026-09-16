@@ -25,6 +25,7 @@ import { validateSecretReference } from "@/workers/execution/secret-manager";
 import { evaluateManualEnablement } from "@/workers/execution/enablement";
 import { evaluateEntitlement, getPlanEntitlements } from "@/lib/billing/entitlements";
 import { assertEntitledUsage, getCurrentUsagePeriod } from "@/lib/billing/usage";
+import { canInviteRole } from "@/lib/team/invitations";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -474,5 +475,7 @@ describe("Phase 2 execution safety", () => {
       periodStart: "2026-09-01T00:00:00.000Z",
       periodEnd: "2026-10-01T00:00:00.000Z",
     });
+    expect(canInviteRole("admin")).toBe(true);
+    expect(canInviteRole("owner")).toBe(false);
   });
 });

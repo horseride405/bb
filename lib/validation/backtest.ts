@@ -22,6 +22,7 @@ export type BacktestTrade = TradeOutcome & {
 
 export type BacktestResult = {
   equityCurve: number[];
+  equityCurveTimes: number[];
   trades: BacktestTrade[];
   metrics: ValidationMetrics;
 };
@@ -43,6 +44,7 @@ export function runLongOnlyBacktest(candles: Candle[], options: BacktestOptions)
   if (candles.length === 0) {
     return {
       equityCurve: [options.initialEquity],
+      equityCurveTimes: [],
       trades: [],
       metrics: calculateValidationMetrics(options.initialEquity, [], []),
     };
@@ -72,6 +74,7 @@ export function runLongOnlyBacktest(candles: Candle[], options: BacktestOptions)
       }
     | undefined;
   const equityCurve: number[] = [];
+  const equityCurveTimes: number[] = [];
   const trades: BacktestTrade[] = [];
 
   const closePosition = (candle: Candle) => {
@@ -119,6 +122,7 @@ export function runLongOnlyBacktest(candles: Candle[], options: BacktestOptions)
     equityCurve.push(
       position ? cash + (candle.close - position.entryPrice) * position.quantity : cash,
     );
+    equityCurveTimes.push(candle.closeTime);
   }
 
   closePosition(candles[candles.length - 1]);
@@ -126,6 +130,7 @@ export function runLongOnlyBacktest(candles: Candle[], options: BacktestOptions)
 
   return {
     equityCurve,
+    equityCurveTimes,
     trades,
     metrics: calculateValidationMetrics(options.initialEquity, equityCurve, trades),
   };

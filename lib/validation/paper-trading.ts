@@ -63,6 +63,7 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
   let lastCandle: Candle | undefined;
   let closed = false;
   const equityCurve: number[] = [];
+  const equityCurveTimes: number[] = [];
   const trades: BacktestTrade[] = [];
 
   const closePosition = (candle: Candle) => {
@@ -117,6 +118,7 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
 
     const equity = position ? cash + (candle.close - position.entryPrice) * position.quantity : cash;
     equityCurve.push(equity);
+    equityCurveTimes.push(candle.closeTime);
     lastCandle = candle;
     return createSnapshot(candle);
   };
@@ -134,6 +136,11 @@ export function createPaperTradingEngine(options: PaperTradingOptions) {
     processCandle,
     finish,
     getMetrics: () => calculateValidationMetrics(options.initialEquity, equityCurve, trades),
+    getResult: () => ({
+      equityCurve: [...equityCurve],
+      equityCurveTimes: [...equityCurveTimes],
+      trades: [...trades],
+    }),
     isClosed: () => closed,
   };
 }

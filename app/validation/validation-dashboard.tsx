@@ -14,7 +14,7 @@ type ResultMetrics = {
   fees: number;
   funding: number;
 };
-type RiskReview = { passed: boolean; violations: string[] };
+type RiskReview = { passed: boolean; violations: string[]; observed?: { maxDailyLossPct?: number }; };
 type Run = {
   id: string;
   run_type: "paper" | "backtest";
@@ -144,6 +144,14 @@ function RunRow({ run }: { run: Run }) {
           <Metric label="Drawdown" value={`${metrics.maxDrawdownPct.toFixed(2)}%`} />
           <Metric label="Win rate" value={`${metrics.winRatePct.toFixed(1)}%`} />
           <Metric label="Trades" value={String(metrics.tradeCount)} />
+          <Metric
+            label="Daily loss"
+            value={
+              run.results?.riskReview?.observed?.maxDailyLossPct === undefined
+                ? "—"
+                : `${run.results.riskReview.observed.maxDailyLossPct.toFixed(2)}%`
+            }
+          />
           <Metric label="Risk review" value={run.results?.riskReview?.passed ? "Passed" : "Review"} />
         </div>
       )}

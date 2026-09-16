@@ -41,7 +41,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
   try {
     const [{ data: strategy, error: strategyError }, { data: riskPolicy, error: riskError }] = await Promise.all([
       client.from("strategies").select("config").eq("id", run.strategy_id).single(),
-      client.from("risk_policies").select("max_leverage, max_position_notional, max_drawdown_pct").eq("workspace_id", run.workspace_id).single(),
+      client.from("risk_policies").select("max_leverage, max_position_notional, max_daily_loss_pct, max_drawdown_pct").eq("workspace_id", run.workspace_id).single(),
     ]);
     if (strategyError || !strategy) throw new Error("Unable to load claimed strategy");
     if (riskError || !riskPolicy) throw new Error("Unable to load workspace risk policy");
@@ -61,7 +61,12 @@ export async function processNextValidationRun(client: WorkerClient = createServ
         template: templateValue(config),
       });
       const riskReview = reviewBacktestRisk(result.metrics, {
+        maxDailyLossPct: riskPolicy.max_daily_loss_pct,
         maxDrawdownPct: riskPolicy.max_drawdown_pct,
+      }, {
+        initialEquity: numberValue(parameters, "initialEquity"),
+        curve: result.equityCurve,
+        times: result.equityCurveTimes,
       });
       const completedResult = { ...result, riskReview };
       const { error: completionError } = await client.rpc("complete_validation_run", {
@@ -85,7 +90,12 @@ export async function processNextValidationRun(client: WorkerClient = createServ
       template: templateValue(config),
     });
     const riskReview = reviewBacktestRisk(result.metrics, {
+      maxDailyLossPct: riskPolicy.max_daily_loss_pct,
       maxDrawdownPct: riskPolicy.max_drawdown_pct,
+    }, {
+      initialEquity: numberValue(parameters, "initialEquity"),
+      curve: result.equityCurve,
+      times: result.equityCurveTimes,
     });
 
     const { error: completionError } = await client.rpc("complete_validation_run", {

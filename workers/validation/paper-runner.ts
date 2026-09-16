@@ -27,6 +27,9 @@ export type PaperValidationResult = {
   template: StrategyTemplate;
   durationMs: number;
   observedAt: number;
+  equityCurve: number[];
+  equityCurveTimes: number[];
+  trades: ReturnType<ReturnType<typeof createPaperTradingEngine>["getResult"]>["trades"];
   metrics: ReturnType<ReturnType<typeof createPaperTradingEngine>["getMetrics"]>;
 };
 
@@ -99,6 +102,7 @@ export async function runPaperValidation(
   if (request.signal?.aborted) throw new Error("Paper validation was aborted");
   if (streamError) throw streamError;
   if (!latestSnapshot) throw new Error("Paper validation ended without a closed candle");
+  const engineResult = engine.getResult();
 
   return {
     version: 1,
@@ -108,6 +112,7 @@ export async function runPaperValidation(
     template: request.template,
     durationMs: request.durationMs,
     observedAt: latestSnapshot.candle.closeTime,
+    ...engineResult,
     metrics: latestSnapshot.metrics,
   };
 }

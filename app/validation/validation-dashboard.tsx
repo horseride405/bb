@@ -4,7 +4,24 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Strategy = { id: string; name: string };
-type Run = { id: string; run_type: "paper" | "backtest"; status: string; created_at: string };
+type ResultMetrics = {
+  netPnl: number;
+  totalReturnPct: number;
+  maxDrawdownPct: number;
+  winRatePct: number;
+  profitFactor: number | null;
+  tradeCount: number;
+  fees: number;
+  funding: number;
+};
+type Run = {
+  id: string;
+  run_type: "paper" | "backtest";
+  status: string;
+  results: { version?: number; metrics?: ResultMetrics } | null;
+  error_message: string | null;
+  created_at: string;
+};
 
 type LoadState = "loading" | "ready" | "auth" | "error";
 
@@ -94,11 +111,7 @@ export default function ValidationDashboard() {
           {runs.length > 0 ? (
             <div className="run-list">
               {runs.slice(0, 4).map((run) => (
-                <div className="run-row" key={run.id}>
-                  <span className={`run-type run-${run.run_type}`}>{run.run_type}</span>
-                  <strong>{run.status}</strong>
-                  <span>{new Date(run.created_at).toLocaleDateString()}</span>
-                </div>
+                <RunRow key={run.id} run={run} />
               ))}
             </div>
           ) : (
@@ -108,6 +121,33 @@ export default function ValidationDashboard() {
       </section>
     </div>
   );
+}
+
+function RunRow({ run }: { run: Run }) {
+  const metrics = run.results?.metrics;
+
+  return (
+    <div className="run-entry">
+      <div className="run-row">
+        <span className={`run-type run-${run.run_type}`}>{run.run_type}</span>
+        <strong>{run.status}</strong>
+        <span>{new Date(run.created_at).toLocaleDateString()}</span>
+      </div>
+      {metrics && run.status === "completed" && (
+        <div className="run-metrics">
+          <Metric label="Return" value={`${metrics.totalReturnPct.toFixed(2)}%`} />
+          <Metric label="Drawdown" value={`${metrics.maxDrawdownPct.toFixed(2)}%`} />
+          <Metric label="Win rate" value={`${metrics.winRatePct.toFixed(1)}%`} />
+          <Metric label="Trades" value={String(metrics.tradeCount)} />
+        </div>
+      )}
+      {run.status === "failed" && run.error_message && <p className="run-error">{run.error_message}</p>}
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return <span><small>{label}</small><strong>{value}</strong></span>;
 }
 
 function ReadinessCard({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "good" | "bad" | "pending" | "locked" }) {

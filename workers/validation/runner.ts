@@ -1,5 +1,6 @@
 import type { Json, Database } from "@/lib/supabase/database";
 import { runHistoricalBacktest } from "@/lib/validation/historical-backtest";
+import { reviewBacktestRisk } from "@/lib/validation/risk-gate";
 import type { StrategyTemplate } from "@/lib/validation/signals";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -43,7 +44,7 @@ export async function processNextValidationRun(client: WorkerClient = createServ
 
     const [{ data: strategy, error: strategyError }, { data: riskPolicy, error: riskError }] = await Promise.all([
       client.from("strategies").select("config").eq("id", run.strategy_id).single(),
-      client.from("risk_policies").select("max_leverage, max_position_notional").eq("workspace_id", run.workspace_id).single(),
+      client.from("risk_policies").select("max_leverage, max_position_notional, max_drawdown_pct").eq("workspace_id", run.workspace_id).single(),
     ]);
     if (strategyError || !strategy) throw new Error("Unable to load claimed strategy");
     if (riskError || !riskPolicy) throw new Error("Unable to load workspace risk policy");
@@ -62,13 +63,16 @@ export async function processNextValidationRun(client: WorkerClient = createServ
       maxPositionNotional: riskPolicy.max_position_notional,
       template: templateValue(config),
     });
+    const riskReview = reviewBacktestRisk(result.metrics, {
+      maxDrawdownPct: riskPolicy.max_drawdown_pct,
+    });
 
     const { error: completionError } = await client.rpc("complete_validation_run", {
       run_id: run.id,
-      run_results: result as unknown as Json,
+      run_results: { ...result, riskReview } as unknown as Json,
     });
     if (completionError) throw new Error(`Unable to complete validation run: ${completionError.message}`);
-    return { runId: run.id, status: "completed" as const, result };
+    return { runId: run.id, status: "completed" as const, result: { ...result, riskReview } };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Validation worker failed";
     const { error: failureError } = await client.rpc("fail_validation_run", {

@@ -57,3 +57,5 @@ The pure `runLongOnlyBacktest` core accepts real normalized candles plus a strat
 `runHistoricalBacktest` is the worker-facing composition boundary: it fetches at most 1,500 candles for the requested bounded window, selects the template signal, runs the simulator, and returns versioned metadata plus metrics. Invoke it only after a queue claim; never call it from a browser or a Vercel request handler.
 
 `workers/validation/runner.ts` provides the first queue loop. `processNextValidationRun()` claims one run, loads its strategy and workspace risk policy, executes backtests, and finalizes the run. Paper runs currently fail explicitly because the live-data paper engine has not been implemented; this is safer than reporting an incomplete result.
+
+Completed backtests also include a `riskReview` comparing measured maximum drawdown with the workspace policy. A passing review is evidence for the next gate only; it does not authorize live trading. Daily loss, liquidation distance, reconciliation, and paper-trading gates remain separate requirements.

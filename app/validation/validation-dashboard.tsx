@@ -14,11 +14,12 @@ type ResultMetrics = {
   fees: number;
   funding: number;
 };
+type RiskReview = { passed: boolean; violations: string[] };
 type Run = {
   id: string;
   run_type: "paper" | "backtest";
   status: string;
-  results: { version?: number; metrics?: ResultMetrics } | null;
+  results: { version?: number; metrics?: ResultMetrics; riskReview?: RiskReview } | null;
   error_message: string | null;
   created_at: string;
 };
@@ -139,7 +140,11 @@ function RunRow({ run }: { run: Run }) {
           <Metric label="Drawdown" value={`${metrics.maxDrawdownPct.toFixed(2)}%`} />
           <Metric label="Win rate" value={`${metrics.winRatePct.toFixed(1)}%`} />
           <Metric label="Trades" value={String(metrics.tradeCount)} />
+          <Metric label="Risk review" value={run.results?.riskReview?.passed ? "Passed" : "Review"} />
         </div>
+      )}
+      {run.status === "completed" && run.results?.riskReview && !run.results.riskReview.passed && (
+        <p className="run-error">{run.results.riskReview.violations.join("; ")}</p>
       )}
       {run.status === "failed" && run.error_message && <p className="run-error">{run.error_message}</p>}
     </div>

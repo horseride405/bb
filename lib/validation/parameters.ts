@@ -9,6 +9,7 @@ export type ValidationParameters = {
   initialEquity: number;
   feeRateBps: number;
   slippageBps: number;
+  outOfSamplePct?: number;
   trailingStopLossPct?: number;
   trailingTakeProfitPct?: number;
   trailingTakeProfitActivationPct?: number;
@@ -49,6 +50,7 @@ export function parseValidationParameters(runType: "paper" | "backtest", input: 
     initialEquity: numberField(record.initialEquity, "initialEquity", 1, 1_000_000_000),
     feeRateBps: numberField(record.feeRateBps ?? 4, "feeRateBps", 0, 1_000),
     slippageBps: numberField(record.slippageBps ?? 2, "slippageBps", 0, 1_000),
+    outOfSamplePct: numberField(record.outOfSamplePct ?? 30, "outOfSamplePct", 10, 50),
   };
   const trailingStopLossPct = record.trailingStopLossPct;
   const trailingTakeProfitPct = record.trailingTakeProfitPct;

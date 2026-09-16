@@ -6,6 +6,7 @@ import {
   type FundingRate,
 } from "@/lib/market-data/binance";
 import { runBacktest, type BacktestResult } from "@/lib/validation/backtest";
+import { calculateValidationMetrics, type ValidationMetrics } from "@/lib/validation/metrics";
 import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
 import type { TrailingExitOptions } from "@/lib/validation/trailing-exits";
 
@@ -17,6 +18,7 @@ export type HistoricalBacktestRequest = TrailingExitOptions & {
   initialEquity: number;
   feeRateBps: number;
   slippageBps: number;
+  outOfSamplePct?: number;
   maxLeverage: number;
   maxPositionNotional?: number;
   maintenanceMarginRate?: number;
@@ -36,6 +38,13 @@ export type HistoricalBacktestResult = BacktestResult & {
   firstCandleOpenTime: number | null;
   lastCandleCloseTime: number | null;
   fundingRateCount: number;
+  walkForward: {
+    outOfSamplePct: number;
+    inSampleCandleCount: number;
+    outOfSampleCandleCount: number;
+    outOfSampleStartTime: number;
+    metrics: ValidationMetrics;
+  };
 };
 
 type CandleFetcher = (
@@ -93,6 +102,24 @@ export async function runHistoricalBacktest(
     fundingRates,
     signal: createTemplateSignal(request.template, request.signalOptions),
   });
+  const outOfSamplePct = request.outOfSamplePct ?? 30;
+  if (!Number.isFinite(outOfSamplePct) || outOfSamplePct < 10 || outOfSamplePct > 50) {
+    throw new Error("Out-of-sample percentage must be between 10 and 50");
+  }
+  const splitIndex = Math.min(
+    candles.length - 1,
+    Math.max(1, Math.floor(candles.length * (1 - outOfSamplePct / 100))),
+  );
+  const outOfSampleStart = candles[splitIndex];
+  const outOfSampleInitialEquity = result.equityCurve[splitIndex - 1] ?? request.initialEquity;
+  const outOfSampleTrades = result.trades.filter(
+    (trade) => trade.entryTime >= outOfSampleStart.openTime,
+  );
+  const outOfSampleMetrics = calculateValidationMetrics(
+    outOfSampleInitialEquity,
+    result.equityCurve.slice(splitIndex - 1),
+    outOfSampleTrades,
+  );
 
   return {
     ...result,
@@ -105,5 +132,12 @@ export async function runHistoricalBacktest(
     firstCandleOpenTime: candles[0]?.openTime ?? null,
     lastCandleCloseTime: candles.at(-1)?.closeTime ?? null,
     fundingRateCount: fundingRates.length,
+    walkForward: {
+      outOfSamplePct,
+      inSampleCandleCount: splitIndex,
+      outOfSampleCandleCount: candles.length - splitIndex,
+      outOfSampleStartTime: outOfSampleStart.openTime,
+      metrics: outOfSampleMetrics,
+    },
   };
 }

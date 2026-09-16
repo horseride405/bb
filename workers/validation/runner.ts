@@ -127,6 +127,8 @@ export async function processNextValidationRun(client: WorkerClient = createServ
       initialEquity: numberValue(parameters, "initialEquity"),
       feeRateBps: numberValue(parameters, "feeRateBps"),
       slippageBps: numberValue(parameters, "slippageBps"),
+      outOfSamplePct:
+        parameters.outOfSamplePct === undefined ? 30 : numberValue(parameters, "outOfSamplePct"),
       maxLeverage: riskPolicy.max_leverage,
       maxPositionNotional: riskPolicy.max_position_notional,
       minLiquidationDistancePct: riskPolicy.min_liquidation_distance_pct,

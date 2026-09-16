@@ -35,6 +35,13 @@ type ValidationConfig = {
   maxTradesPerHour?: number;
   minTradeIntervalSeconds?: number;
 };
+type WalkForward = {
+  outOfSamplePct: number;
+  inSampleCandleCount: number;
+  outOfSampleCandleCount: number;
+  outOfSampleStartTime: number;
+  metrics: ResultMetrics;
+};
 type Run = {
   id: string;
   run_type: "paper" | "backtest";
@@ -46,6 +53,7 @@ type Run = {
     equityCurveTimes?: number[];
     trades?: ResultTrade[];
     validationConfig?: ValidationConfig;
+    walkForward?: WalkForward;
     riskReview?: RiskReview;
   } | null;
   error_message: string | null;
@@ -226,6 +234,20 @@ function RunRow({ run }: { run: Run }) {
               <span>
                 Risk: {run.results.validationConfig.maxLeverage ?? "—"}x · cooldown{" "}
                 {run.results.validationConfig.minTradeIntervalSeconds ?? "—"}s
+              </span>
+            </div>
+          )}
+          {run.results.walkForward && (
+            <div className="trade-list">
+              <span>
+                Out-of-sample: {run.results.walkForward.outOfSamplePct}% ·{" "}
+                {run.results.walkForward.outOfSampleCandleCount} candles from{" "}
+                {new Date(run.results.walkForward.outOfSampleStartTime).toLocaleDateString()}
+              </span>
+              <span>
+                OOS return: {run.results.walkForward.metrics.totalReturnPct.toFixed(2)}% · drawdown:{" "}
+                {run.results.walkForward.metrics.maxDrawdownPct.toFixed(2)}% · trades:{" "}
+                {run.results.walkForward.metrics.tradeCount}
               </span>
             </div>
           )}

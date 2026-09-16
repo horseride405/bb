@@ -2,6 +2,7 @@ import type { Database } from "@/lib/supabase/database";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { retryWithBackoff } from "@/workers/execution/retry";
+import { recordWorkerAuditEvent } from "@/workers/execution/audit";
 
 export type WorkerHeartbeatStatus = "healthy" | "degraded" | "offline";
 
@@ -53,6 +54,14 @@ export async function persistWorkerHeartbeat(
     throw new Error("Workspace, account, and worker identifiers are required");
   }
   const status = classifyWorkerHeartbeat(input);
+  const { data: existing, error: existingError } = await client
+    .from("execution_worker_heartbeats")
+    .select("status")
+    .eq("workspace_id", input.workspaceId)
+    .eq("account_connection_id", input.accountConnectionId)
+    .eq("worker_name", input.workerName)
+    .maybeSingle();
+  if (existingError) throw new Error(`Unable to inspect worker heartbeat: ${existingError.message}`);
   await retryWithBackoff(async () => {
     const { error } = await client.from("execution_worker_heartbeats").upsert({
       workspace_id: input.workspaceId,
@@ -67,5 +76,19 @@ export async function persistWorkerHeartbeat(
     }, { onConflict: "workspace_id,account_connection_id,worker_name" });
     if (error) throw new Error(`Unable to persist worker heartbeat: ${error.message}`);
   });
+  if (!existing || existing.status !== status) {
+    await recordWorkerAuditEvent(client, {
+      workspaceId: input.workspaceId,
+      eventType: "execution_worker_status_changed",
+      resourceType: "execution_worker_heartbeat",
+      resourceId: input.accountConnectionId,
+      metadata: {
+        worker_name: input.workerName,
+        previous_status: existing?.status ?? null,
+        next_status: status,
+        consecutive_failures: input.consecutiveFailures,
+      },
+    });
+  }
   return status;
 }

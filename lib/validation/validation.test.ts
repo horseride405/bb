@@ -303,4 +303,13 @@ describe("Phase 2 execution safety", () => {
     expect(attempts).toBe(3);
     expect(delays).toEqual([10, 20]);
   });
+
+  it("classifies heartbeat recovery as healthy after failures clear", () => {
+    expect(classifyWorkerHeartbeat({
+      observedAt: 100_000,
+      lastSuccessAt: 100_000,
+      consecutiveFailures: 0,
+      now: 100_001,
+    })).toBe("healthy");
+  });
 });

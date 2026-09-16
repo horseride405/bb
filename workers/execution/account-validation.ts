@@ -1,6 +1,7 @@
 import type { Database } from "@/lib/supabase/database";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { recordWorkerAuditEvent } from "@/workers/execution/audit";
 
 export type AccountVerifier = {
   verify(input: {
@@ -27,7 +28,7 @@ export async function validateBinanceAccountConnection(
 ): Promise<AccountValidationResult> {
   const { data: account, error: accountError } = await client
     .from("binance_account_connections")
-    .select("id, environment")
+    .select("id, workspace_id, environment, status")
     .eq("id", input.accountConnectionId)
     .single();
   if (accountError || !account) {
@@ -42,6 +43,7 @@ export async function validateBinanceAccountConnection(
   if (secretError || !secret) {
     const message = "Worker credential reference is unavailable";
     await updateAccountStatus(client, input.accountConnectionId, "error", message, null);
+    await recordStatusTransition(client, account.workspace_id, account.id, account.status, "error", message);
     return {
       accountConnectionId: input.accountConnectionId,
       status: "error",
@@ -57,6 +59,7 @@ export async function validateBinanceAccountConnection(
     });
     const verifiedAt = Date.now();
     await updateAccountStatus(client, input.accountConnectionId, "connected", null, verifiedAt);
+    await recordStatusTransition(client, account.workspace_id, account.id, account.status, "connected");
     return {
       accountConnectionId: input.accountConnectionId,
       status: "connected",
@@ -66,6 +69,7 @@ export async function validateBinanceAccountConnection(
   } catch {
     const message = "Account verification failed";
     await updateAccountStatus(client, input.accountConnectionId, "error", message, null);
+    await recordStatusTransition(client, account.workspace_id, account.id, account.status, "error", message);
     return {
       accountConnectionId: input.accountConnectionId,
       status: "error",
@@ -73,6 +77,28 @@ export async function validateBinanceAccountConnection(
       errorMessage: message,
     };
   }
+}
+
+async function recordStatusTransition(
+  client: WorkerClient,
+  workspaceId: string,
+  accountConnectionId: string,
+  previousStatus: "pending" | "connected" | "disabled" | "error",
+  nextStatus: "connected" | "error",
+  reason?: string,
+) {
+  if (previousStatus === nextStatus) return;
+  await recordWorkerAuditEvent(client, {
+    workspaceId,
+    eventType: "binance_account_status_changed",
+    resourceType: "binance_account_connection",
+    resourceId: accountConnectionId,
+    metadata: {
+      previous_status: previousStatus,
+      next_status: nextStatus,
+      ...(reason ? { reason } : {}),
+    },
+  });
 }
 
 async function updateAccountStatus(

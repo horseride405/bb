@@ -39,6 +39,7 @@ The first production architecture keeps the dashboard and control plane on Verce
 - `GET /api/live/audit` exposes tenant-scoped immutable control-history events without credential or signed-request payloads.
 - `/api/live/operations` also reports worker heartbeats; stale or offline reconciliation workers remain a blocking operational condition.
 - Worker heartbeat writes use bounded exponential retry and never convert exhausted persistence failures into a healthy signal.
+- Worker account-health and heartbeat transitions are recorded as identifier-only audit events, including recovery transitions.
 - Controlled-live readiness is evaluated worker-side with explicit blockers; it is informational only and never authorizes order submission.
 
 Queued runs are claimed atomically through `claim_next_validation_run()` by a separate worker process. `workers/validation/runner.ts` executes supported historical backtests and finalizes runs through service-role-only RPCs; it never places live Binance orders.

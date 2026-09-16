@@ -20,6 +20,8 @@ import {
   validateExecutionFillInput,
 } from "@/workers/execution/order-state";
 import { canCancelExecutionIntent } from "@/workers/execution/intent-preflight";
+import { createDisabledExecutionAdapter } from "@/workers/execution/adapter";
+import { validateSecretReference } from "@/workers/execution/secret-manager";
 
 function candle(index: number, close: number, high = close, low = close): Candle {
   const openTime = index * 60_000;
@@ -407,5 +409,22 @@ describe("Phase 2 execution safety", () => {
     }).status).toBe("healthy");
     expect(canCancelExecutionIntent("preflighted")).toBe(true);
     expect(canCancelExecutionIntent("cancelled")).toBe(false);
+  });
+
+  it("keeps the execution adapter disabled and validates secret references", async () => {
+    await expect(createDisabledExecutionAdapter().submitOrder({
+      accountConnectionId: "account",
+      clientOrderId: "client-order",
+      symbol: "BTCUSDT",
+      side: "buy",
+      quantity: 1,
+      reduceOnly: true,
+    })).rejects.toThrow("Signed Binance order execution is disabled");
+    expect(() => validateSecretReference({
+      provider: "vault",
+      reference: "secret/apexpilot/account",
+    })).not.toThrow();
+    expect(() => validateSecretReference({ provider: "", reference: "x" }))
+      .toThrow("Secret-manager reference is required");
   });
 });

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 
 type RiskInput = {
   workspace_id?: unknown;
+  position_side?: unknown;
   leverage?: unknown;
   position_notional?: unknown;
   daily_loss_pct?: unknown;
@@ -30,12 +31,27 @@ export async function POST(request: Request) {
 
   if (
     typeof body.workspace_id !== "string" ||
+    (body.position_side !== undefined &&
+      body.position_side !== "long" &&
+      body.position_side !== "short") ||
     typeof body.leverage !== "number" ||
     typeof body.position_notional !== "number" ||
     typeof body.daily_loss_pct !== "number" ||
     typeof body.open_positions !== "number"
   ) {
     return NextResponse.json({ error: "Workspace and numeric risk inputs are required" }, { status: 400 });
+  }
+  if (
+    !Number.isFinite(body.leverage) ||
+    !Number.isFinite(body.position_notional) ||
+    !Number.isFinite(body.daily_loss_pct) ||
+    !Number.isFinite(body.open_positions) ||
+    body.leverage < 0 ||
+    body.position_notional < 0 ||
+    body.daily_loss_pct < 0 ||
+    body.open_positions < 0
+  ) {
+    return NextResponse.json({ error: "Risk inputs must be finite and non-negative" }, { status: 400 });
   }
 
   const { data: policy, error } = await supabase
@@ -57,6 +73,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     allowed: violations.length === 0,
     live_trading_enabled: policy.live_trading_enabled,
+    position_side: body.position_side ?? "net",
     violations,
   });
 }

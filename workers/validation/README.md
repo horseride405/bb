@@ -51,3 +51,5 @@ Queued runs use normalized parameters: `symbol`, `interval`, `initialEquity`, `f
 The pure `runLongOnlyBacktest` core accepts real normalized candles plus a strategy signal callback. It marks equity to market on every candle, applies entry/exit slippage and fees, caps notional by leverage and optional position size, and force-closes at the end of the dataset. It is a simulation helper only and cannot place Binance orders.
 
 `createTemplateSignal` supplies no-lookahead callbacks for the current Momentum, Mean Reversion, and Breakout templates. The worker should construct the signal from the stored strategy configuration, pass it to `runLongOnlyBacktest`, and persist only the resulting metrics and trade data.
+
+`runHistoricalBacktest` is the worker-facing composition boundary: it fetches at most 1,500 candles for the requested bounded window, selects the template signal, runs the simulator, and returns versioned metadata plus metrics. Invoke it only after a queue claim; never call it from a browser or a Vercel request handler.

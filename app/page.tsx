@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const metrics = [
   { label: "Paper equity", value: "$25,000.00", change: "+2.84%" },
   { label: "Active strategies", value: "3", change: "1 running" },
@@ -37,21 +39,21 @@ export default function Home() {
           <span>ApexPilot</span>
         </div>
         <nav aria-label="Main navigation">
-          <a className="nav-item active" href="/">
+          <Link className="nav-item active" href="/">
             <span>◈</span> Overview
-          </a>
-          <a className="nav-item" href="/">
+          </Link>
+          <Link className="nav-item" href="/">
             <span>⌁</span> Strategies
-          </a>
-          <a className="nav-item" href="/">
+          </Link>
+          <Link className="nav-item" href="/">
             <span>◌</span> Backtests
-          </a>
-          <a className="nav-item" href="/">
+          </Link>
+          <Link className="nav-item" href="/">
             <span>↗</span> Paper trading
-          </a>
-          <a className="nav-item" href="/">
+          </Link>
+          <Link className="nav-item" href="/">
             <span>⚙</span> Risk controls
-          </a>
+          </Link>
         </nav>
         <div className="sidebar-footer">
           <span className="status-dot" /> Binance testnet connected

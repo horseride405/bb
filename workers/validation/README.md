@@ -20,3 +20,25 @@ SUPABASE_SERVICE_ROLE_KEY
 ```
 
 The service-role key belongs only in the worker deployment secret store. It must never be included in browser bundles, request payloads, logs, or repository files.
+
+## Result contract
+
+`strategy_runs.results` should contain a versioned object like:
+
+```json
+{
+  "version": 1,
+  "metrics": {
+    "netPnl": 0,
+    "totalReturnPct": 0,
+    "maxDrawdownPct": 0,
+    "winRatePct": 0,
+    "profitFactor": 0,
+    "tradeCount": 0,
+    "fees": 0,
+    "funding": 0
+  }
+}
+```
+
+Metrics must be calculated from actual historical candles or live streamed paper-trading events. The worker must not populate successful results from placeholders or predicted values.

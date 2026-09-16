@@ -29,6 +29,7 @@ The first production architecture keeps the dashboard and control plane on Verce
 - `POST /api/strategies` creates paper or backtest strategies; live mode is rejected until the execution safety layer is complete.
 - `GET/PATCH /api/risk-policies` reads or updates admin-controlled workspace limits.
 - `POST /api/risk/validate` checks proposed leverage, notional, loss, and position counts before execution.
+- `GET/POST /api/strategies/:id/runs` lists or queues paper/backtest validation runs; a worker will process queued runs in a later slice.
 
 ## Safety boundary
 

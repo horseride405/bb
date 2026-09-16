@@ -3,6 +3,8 @@ create extension if not exists "pgcrypto";
 create type public.workspace_role as enum ('owner', 'admin', 'trader', 'viewer');
 create type public.strategy_status as enum ('draft', 'ready', 'running', 'paused', 'archived');
 create type public.strategy_mode as enum ('paper', 'backtest', 'live');
+create type public.validation_run_type as enum ('paper', 'backtest');
+create type public.validation_run_status as enum ('queued', 'running', 'completed', 'failed', 'cancelled');
 
 create table public.workspaces (
   id uuid primary key default gen_random_uuid(),
@@ -46,8 +48,25 @@ create table public.risk_policies (
   updated_at timestamptz not null default now()
 );
 
+create table public.strategy_runs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  strategy_id uuid not null references public.strategies(id) on delete cascade,
+  requested_by uuid not null references auth.users(id),
+  run_type public.validation_run_type not null,
+  status public.validation_run_status not null default 'queued',
+  parameters jsonb not null default '{}'::jsonb,
+  results jsonb,
+  error_message text,
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
 create index strategies_workspace_id_idx on public.strategies(workspace_id);
 create index workspace_members_user_id_idx on public.workspace_members(user_id);
+create index strategy_runs_workspace_id_idx on public.strategy_runs(workspace_id);
+create index strategy_runs_strategy_id_idx on public.strategy_runs(strategy_id);
 
 create or replace function public.is_workspace_member(target_workspace_id uuid)
 returns boolean
@@ -84,6 +103,7 @@ alter table public.workspaces enable row level security;
 alter table public.workspace_members enable row level security;
 alter table public.strategies enable row level security;
 alter table public.risk_policies enable row level security;
+alter table public.strategy_runs enable row level security;
 
 create policy "Members can view their workspaces"
   on public.workspaces for select
@@ -121,6 +141,17 @@ create policy "Admins can update workspace risk policies"
   on public.risk_policies for update
   using (public.is_workspace_admin(workspace_id))
   with check (public.is_workspace_admin(workspace_id));
+
+create policy "Members can view validation runs"
+  on public.strategy_runs for select
+  using (public.is_workspace_member(workspace_id));
+
+create policy "Members can request validation runs"
+  on public.strategy_runs for insert
+  with check (
+    public.is_workspace_member(workspace_id)
+    and requested_by = (select auth.uid())
+  );
 
 create or replace function public.create_workspace(workspace_name text, workspace_slug text)
 returns setof public.workspaces

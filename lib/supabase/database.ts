@@ -99,6 +99,38 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["risk_policies"]["Insert"]>;
         Relationships: [];
       };
+      strategy_runs: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          strategy_id: string;
+          requested_by: string;
+          run_type: "paper" | "backtest";
+          status: "queued" | "running" | "completed" | "failed" | "cancelled";
+          parameters: Json;
+          results: Json | null;
+          error_message: string | null;
+          started_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          strategy_id: string;
+          requested_by: string;
+          run_type: "paper" | "backtest";
+          status?: "queued" | "running" | "completed" | "failed" | "cancelled";
+          parameters?: Json;
+          results?: Json | null;
+          error_message?: string | null;
+          started_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["strategy_runs"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -114,6 +146,8 @@ export type Database = {
       workspace_role: "owner" | "admin" | "trader" | "viewer";
       strategy_status: "draft" | "ready" | "running" | "paused" | "archived";
       strategy_mode: "paper" | "backtest" | "live";
+      validation_run_type: "paper" | "backtest";
+      validation_run_status: "queued" | "running" | "completed" | "failed" | "cancelled";
     };
     CompositeTypes: Record<string, never>;
   };

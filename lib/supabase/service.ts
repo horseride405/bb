@@ -1,4 +1,6 @@
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { WebSocketLikeConstructor } from "@supabase/realtime-js";
+import WebSocket from "ws";
 
 import type { Database } from "@/lib/supabase/database";
 
@@ -9,11 +11,14 @@ export function createServiceClient(): SupabaseClient<Database> {
     throw new Error("Worker Supabase environment is not configured");
   }
 
-  return createSupabaseClient<Database>(url, serviceRoleKey, {
+  return createSupabaseClient<Database, "public">(url, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       detectSessionInUrl: false,
       persistSession: false,
+    },
+    realtime: {
+      transport: WebSocket as unknown as WebSocketLikeConstructor,
     },
   });
 }

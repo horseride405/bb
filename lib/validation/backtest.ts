@@ -1,4 +1,4 @@
-import type { Candle } from "@/lib/market-data/binance";
+import type { Candle, FundingRate } from "@/lib/market-data/binance";
 import { calculateValidationMetrics, type TradeOutcome, type ValidationMetrics } from "@/lib/validation/metrics";
 
 export type BacktestSignal = "long" | "short" | "flat";
@@ -9,6 +9,7 @@ export type BacktestOptions = {
   slippageBps: number;
   maxLeverage: number;
   maxPositionNotional?: number;
+  fundingRates?: FundingRate[];
   signal: (candle: Candle, index: number) => BacktestSignal;
 };
 
@@ -73,11 +74,13 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
         entryFee: number;
         quantity: number;
         side: "long" | "short";
+        fundingCost: number;
       }
     | undefined;
   const equityCurve: number[] = [];
   const equityCurveTimes: number[] = [];
   const trades: BacktestTrade[] = [];
+  let fundingIndex = 0;
 
   const closePosition = (candle: Candle) => {
     if (!position) return;
@@ -87,9 +90,9 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
     const exitFee = exitPrice * position.quantity * feeRate;
     cash += grossPnl - exitFee;
     trades.push({
-      pnl: grossPnl - position.entryFee - exitFee,
+      pnl: grossPnl - position.entryFee - exitFee - position.fundingCost,
       fees: position.entryFee + exitFee,
-      funding: 0,
+      funding: position.fundingCost,
       side: position.side,
       entryTime: position.entryTime,
       exitTime: candle.closeTime,
@@ -99,6 +102,15 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
     });
     position = undefined;
   };
+
+  for (const rate of options.fundingRates ?? []) {
+    if (!Number.isInteger(rate.fundingTime) || !Number.isFinite(rate.fundingRate)) {
+      throw new Error("Backtest funding rates must contain finite timestamps and rates");
+    }
+  }
+  if ((options.fundingRates ?? []).some((rate, index, rates) => index > 0 && rate.fundingTime <= rates[index - 1].fundingTime)) {
+    throw new Error("Backtest funding rates must be sorted by funding time");
+  }
 
   for (let index = 0; index < candles.length; index += 1) {
     const candle = candles[index];
@@ -119,8 +131,19 @@ export function runBacktest(candles: Candle[], options: BacktestOptions): Backte
       const entryFee = notional * feeRate;
       if (quantity > 0 && entryFee < availableEquity) {
         cash -= entryFee;
-        position = { entryPrice, entryTime: candle.closeTime, entryFee, quantity, side: signal };
+        position = { entryPrice, entryTime: candle.closeTime, entryFee, quantity, side: signal, fundingCost: 0 };
       }
+    }
+
+    while (fundingIndex < (options.fundingRates ?? []).length) {
+      const rate = options.fundingRates?.[fundingIndex];
+      if (!rate || rate.fundingTime > candle.closeTime) break;
+      if (position && rate.fundingTime >= position.entryTime) {
+        const payment = candle.close * position.quantity * rate.fundingRate * (position.side === "long" ? 1 : -1);
+        cash -= payment;
+        position.fundingCost += payment;
+      }
+      fundingIndex += 1;
     }
 
     equityCurve.push(

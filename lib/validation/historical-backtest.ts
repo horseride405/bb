@@ -1,4 +1,10 @@
-import { fetchBinanceCandleRange, maxHistoricalRangeMs, type Candle } from "@/lib/market-data/binance";
+import {
+  fetchBinanceCandleRange,
+  fetchBinanceFundingRates,
+  maxHistoricalRangeMs,
+  type Candle,
+  type FundingRate,
+} from "@/lib/market-data/binance";
 import { runBacktest, type BacktestResult } from "@/lib/validation/backtest";
 import { createTemplateSignal, type SignalOptions, type StrategyTemplate } from "@/lib/validation/signals";
 
@@ -14,6 +20,7 @@ export type HistoricalBacktestRequest = {
   maxPositionNotional?: number;
   template: StrategyTemplate;
   signalOptions?: SignalOptions;
+  fundingRates?: FundingRate[];
 };
 
 export type HistoricalBacktestResult = BacktestResult & {
@@ -25,6 +32,7 @@ export type HistoricalBacktestResult = BacktestResult & {
   candleCount: number;
   firstCandleOpenTime: number | null;
   lastCandleCloseTime: number | null;
+  fundingRateCount: number;
 };
 
 type CandleFetcher = (
@@ -32,6 +40,10 @@ type CandleFetcher = (
   interval: string,
   query: { startTime: number; endTime: number },
 ) => Promise<Candle[]>;
+type FundingFetcher = (
+  symbol: string,
+  query: { startTime: number; endTime: number },
+) => Promise<FundingRate[]>;
 
 function validateWindow(startTime: number, endTime: number) {
   if (
@@ -48,12 +60,18 @@ function validateWindow(startTime: number, endTime: number) {
 export async function runHistoricalBacktest(
   request: HistoricalBacktestRequest,
   fetchCandles: CandleFetcher = fetchBinanceCandleRange,
+  fetchFundingRates: FundingFetcher = fetchBinanceFundingRates,
 ): Promise<HistoricalBacktestResult> {
   validateWindow(request.startTime, request.endTime);
-  const candles = await fetchCandles(request.symbol, request.interval, {
-    startTime: request.startTime,
-    endTime: request.endTime,
-  });
+  const [candles, fundingRates] = await Promise.all([
+    fetchCandles(request.symbol, request.interval, {
+      startTime: request.startTime,
+      endTime: request.endTime,
+    }),
+    request.fundingRates
+      ? Promise.resolve(request.fundingRates)
+      : fetchFundingRates(request.symbol, { startTime: request.startTime, endTime: request.endTime }),
+  ]);
   if (candles.length === 0) {
     throw new Error("Historical backtest returned no candles");
   }
@@ -64,6 +82,7 @@ export async function runHistoricalBacktest(
     slippageBps: request.slippageBps,
     maxLeverage: request.maxLeverage,
     maxPositionNotional: request.maxPositionNotional,
+    fundingRates,
     signal: createTemplateSignal(request.template, request.signalOptions),
   });
 
@@ -77,5 +96,6 @@ export async function runHistoricalBacktest(
     candleCount: candles.length,
     firstCandleOpenTime: candles[0]?.openTime ?? null,
     lastCandleCloseTime: candles.at(-1)?.closeTime ?? null,
+    fundingRateCount: fundingRates.length,
   };
 }

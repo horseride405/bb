@@ -7,6 +7,10 @@ export type Candle = {
   volume: number;
   closeTime: number;
 };
+export type FundingRate = {
+  fundingTime: number;
+  fundingRate: number;
+};
 
 export const supportedIntervals = new Set(["1m", "5m", "15m", "1h", "4h", "1d"]);
 export const intervalDurationMs: Record<string, number> = {
@@ -132,6 +136,7 @@ export async function fetchBinanceCandleRange(
 
   const candles: Candle[] = [];
   let nextStartTime = query.startTime;
+  let exhausted = false;
   for (let page = 0; page < 1_000 && nextStartTime < query.endTime; page += 1) {
     const batch = await fetchBinanceCandles(symbol, interval, 1_500, {
       startTime: nextStartTime,
@@ -140,7 +145,10 @@ export async function fetchBinanceCandleRange(
     const filtered = batch.filter(
       (candle) => candle.openTime >= query.startTime && candle.openTime < query.endTime,
     );
-    if (filtered.length === 0) break;
+    if (filtered.length === 0) {
+      exhausted = true;
+      break;
+    }
 
     const lastCandle = filtered.at(-1);
     if (!lastCandle || lastCandle.openTime < nextStartTime) {
@@ -148,11 +156,90 @@ export async function fetchBinanceCandleRange(
     }
     candles.push(...filtered.filter((candle) => candles.at(-1)?.openTime !== candle.openTime));
     nextStartTime = lastCandle.openTime + durationMs;
-    if (batch.length < 1_500) break;
+    if (batch.length < 1_500) {
+      exhausted = true;
+      break;
+    }
   }
 
-  if (nextStartTime < query.endTime) {
+  if (!exhausted && nextStartTime < query.endTime) {
     throw new Error("Binance historical pagination exceeded its safety limit");
   }
   return candles;
+}
+
+export async function fetchBinanceFundingRates(
+  symbol: string,
+  query: { startTime: number; endTime: number },
+): Promise<FundingRate[]> {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  if (!/^[A-Z0-9]{5,20}$/.test(normalizedSymbol)) throw new Error("Invalid Binance Futures symbol");
+  if (
+    !Number.isInteger(query.startTime) ||
+    !Number.isInteger(query.endTime) ||
+    query.startTime < 0 ||
+    query.endTime <= query.startTime ||
+    query.endTime - query.startTime > maxHistoricalRangeMs
+  ) {
+    throw new Error("Funding-rate range must be a valid range of 90 days or less");
+  }
+
+  const rates: FundingRate[] = [];
+  let nextStartTime = query.startTime;
+  let exhausted = false;
+  for (let page = 0; page < 100 && nextStartTime < query.endTime; page += 1) {
+    const url = new URL("/fapi/v1/fundingRate", baseUrl());
+    url.searchParams.set("symbol", normalizedSymbol);
+    url.searchParams.set("limit", "1000");
+    url.searchParams.set("startTime", String(nextStartTime));
+    url.searchParams.set("endTime", String(query.endTime));
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8_000);
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { accept: "application/json" },
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(`Binance funding-rate request failed with status ${response.status}`);
+      const payload: unknown = await response.json();
+      if (!Array.isArray(payload)) throw new Error("Binance returned an invalid funding-rate payload");
+
+      const batch = payload.map((row) => {
+        if (
+          typeof row !== "object" ||
+          row === null ||
+          Array.isArray(row) ||
+          typeof row.fundingTime !== "number" ||
+          typeof row.fundingRate !== "string"
+        ) {
+          throw new Error("Binance returned an invalid funding-rate row");
+        }
+        const fundingRate = Number(row.fundingRate);
+        if (!Number.isFinite(fundingRate)) throw new Error("Binance returned an invalid funding rate");
+        return { fundingTime: row.fundingTime, fundingRate };
+      }).filter((rate) => rate.fundingTime >= query.startTime && rate.fundingTime < query.endTime);
+      if (batch.length === 0) {
+        exhausted = true;
+        break;
+      }
+
+      const lastRate = batch.at(-1);
+      if (!lastRate || lastRate.fundingTime < nextStartTime) {
+        throw new Error("Binance funding-rate pagination made no progress");
+      }
+      rates.push(...batch.filter((rate) => rates.at(-1)?.fundingTime !== rate.fundingTime));
+      nextStartTime = lastRate.fundingTime + 1;
+      if (payload.length < 1000) {
+        exhausted = true;
+        break;
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  if (!exhausted && nextStartTime < query.endTime) {
+    throw new Error("Binance funding-rate pagination exceeded its safety limit");
+  }
+  return rates;
 }

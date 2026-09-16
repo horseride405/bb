@@ -63,8 +63,8 @@ export async function validateBinanceAccountConnection(
       verifiedAt,
       errorMessage: null,
     };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Account verification failed";
+  } catch {
+    const message = "Account verification failed";
     await updateAccountStatus(client, input.accountConnectionId, "error", message, null);
     return {
       accountConnectionId: input.accountConnectionId,

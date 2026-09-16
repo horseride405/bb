@@ -241,4 +241,23 @@ describe("Phase 2 execution safety", () => {
       "reconciliation_stale",
     ]));
   });
+
+  it("fails closed for future reconciliation timestamps and marks stale state", () => {
+    expect(reconcileAccountState({
+      observedAt: 2_000,
+      expectedPositions: [],
+      observedPositions: [],
+      now: 1_000,
+    })).toEqual({ status: "error", differences: ["invalid_observed_at"] });
+
+    const stale = reconcileAccountState({
+      observedAt: 0,
+      expectedPositions: [],
+      observedPositions: [],
+      maxAgeMs: 60_000,
+      now: 120_000,
+    });
+    expect(stale.status).toBe("stale");
+    expect(stale.differences).toContain("reconciliation_stale");
+  });
 });

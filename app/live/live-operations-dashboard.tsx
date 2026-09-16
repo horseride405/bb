@@ -156,7 +156,7 @@ export default function LiveOperationsDashboard() {
                     <span>{account.api_key_last4 ? `••••${account.api_key_last4}` : "No key suffix"}</span>
                   </div>
                   <div className="run-error">
-                    Reconciliation: {snapshot?.status ?? "not observed"} · {snapshot?.observed_at ? new Date(snapshot.observed_at).toLocaleString() : "no snapshot"}
+                    Verified: {account.last_verified_at ? new Date(account.last_verified_at).toLocaleString() : "not verified"} · Reconciliation: {snapshot?.status ?? "not observed"} · {snapshot?.observed_at ? new Date(snapshot.observed_at).toLocaleString() : "no snapshot"}
                     {account.last_error ? ` · ${account.last_error}` : ""}
                   </div>
                 </div>

@@ -14,6 +14,7 @@ export type ReconciliationInput = {
   observedPositions: ReconciliationPosition[];
   observedAt: number;
   maxAgeMs?: number;
+  now?: number;
 };
 
 export type ReconciliationResult = {
@@ -26,6 +27,10 @@ function positionKey(position: ReconciliationPosition) {
 }
 
 export function reconcileAccountState(input: ReconciliationInput): ReconciliationResult {
+  const now = input.now ?? Date.now();
+  if (!Number.isFinite(input.observedAt) || input.observedAt > now) {
+    return { status: "error", differences: ["invalid_observed_at"] };
+  }
   const differences: string[] = [];
   const expected = new Map(input.expectedPositions.map((position) => [positionKey(position), position]));
   const observed = new Map(input.observedPositions.map((position) => [positionKey(position), position]));
@@ -47,12 +52,9 @@ export function reconcileAccountState(input: ReconciliationInput): Reconciliatio
     if (!expected.has(key)) differences.push(`unexpected_observed_position:${key}`);
   }
   const maxAgeMs = input.maxAgeMs ?? 60_000;
-  const status =
-    Date.now() - input.observedAt > maxAgeMs
-      ? "stale"
-      : differences.length > 0
-        ? "mismatch"
-        : "healthy";
+  const stale = now - input.observedAt > maxAgeMs;
+  if (stale) differences.push("reconciliation_stale");
+  const status = stale ? "stale" : differences.length > 0 ? "mismatch" : "healthy";
   return { status, differences };
 }
 
@@ -70,6 +72,12 @@ export async function persistReconciliationSnapshot(
     errorMessage?: string;
   },
 ) {
+  if (!input.workspaceId || !input.accountConnectionId) {
+    throw new Error("Workspace and account identifiers are required");
+  }
+  if (!Number.isFinite(input.observedAt) || input.observedAt > Date.now()) {
+    throw new Error("Reconciliation timestamp must be a finite, non-future timestamp");
+  }
   const { error } = await client.from("reconciliation_snapshots").insert({
     workspace_id: input.workspaceId,
     account_connection_id: input.accountConnectionId,

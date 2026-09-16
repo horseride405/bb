@@ -47,3 +47,5 @@ Metrics must be calculated from actual historical candles or live streamed paper
 Historical backtests should request explicit candle timestamps through the authenticated market-data boundary. Requests are bounded to a 90-day range and a maximum of 1,500 candles; workers should paginate deliberately rather than issuing unbounded data requests.
 
 Queued runs use normalized parameters: `symbol`, `interval`, `initialEquity`, `feeRateBps`, and `slippageBps`. Backtests additionally require `startTime` and `endTime`; the API rejects missing or non-reproducible ranges before queue insertion.
+
+The pure `runLongOnlyBacktest` core accepts real normalized candles plus a strategy signal callback. It marks equity to market on every candle, applies entry/exit slippage and fees, caps notional by leverage and optional position size, and force-closes at the end of the dataset. It is a simulation helper only and cannot place Binance orders.

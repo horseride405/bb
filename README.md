@@ -1,0 +1,26 @@
+# ApexPilot
+
+Multi-tenant Binance Futures strategy validation and execution platform.
+
+## Initial scope
+
+This first slice is the SaaS control-plane foundation:
+
+- Next.js dashboard shell for a tenant workspace
+- Supabase-ready environment contract
+- Product surfaces for strategies, validation, paper trading, and risk controls
+- No live order execution or custody of funds
+
+## Local development
+
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+The first production architecture keeps the dashboard and control plane on Vercel/Supabase. Long-running Binance market-data, risk, reconciliation, and order workers will be deployed separately.
+
+## Safety boundary
+
+Live trading must remain disabled until tenant isolation, encrypted API credentials, paper-trading validation, risk limits, reconciliation, audit logs, and an emergency kill switch are implemented and tested.

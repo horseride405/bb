@@ -27,6 +27,8 @@ The first production architecture keeps the dashboard and control plane on Verce
 - `POST /api/workspaces` creates a workspace and owner membership through the `create_workspace` database function.
 - `GET /api/strategies` lists tenant-visible strategies.
 - `POST /api/strategies` creates paper or backtest strategies; live mode is rejected until the execution safety layer is complete.
+- `GET/PATCH /api/risk-policies` reads or updates admin-controlled workspace limits.
+- `POST /api/risk/validate` checks proposed leverage, notional, loss, and position counts before execution.
 
 ## Safety boundary
 

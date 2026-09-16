@@ -69,6 +69,36 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["workspaces"]["Insert"]>;
         Relationships: [];
       };
+      risk_policies: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          max_leverage: number;
+          max_position_notional: number;
+          max_daily_loss_pct: number;
+          max_drawdown_pct: number;
+          max_open_positions: number;
+          min_liquidation_distance_pct: number;
+          live_trading_enabled: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          max_leverage?: number;
+          max_position_notional?: number;
+          max_daily_loss_pct?: number;
+          max_drawdown_pct?: number;
+          max_open_positions?: number;
+          min_liquidation_distance_pct?: number;
+          live_trading_enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["risk_policies"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

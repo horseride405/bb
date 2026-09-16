@@ -68,6 +68,10 @@ export default function ValidationDashboard() {
     }
 
     void loadValidationState();
+    const refreshTimer = window.setInterval(() => {
+      void loadValidationState();
+    }, 5_000);
+    return () => window.clearInterval(refreshTimer);
   }, []);
 
   return (

@@ -37,6 +37,9 @@ export default function StrategyBuilder() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [strategyId, setStrategyId] = useState("");
+  const [queueing, setQueueing] = useState(false);
+  const [queueMessage, setQueueMessage] = useState("");
 
   const template = useMemo(
     () => templates.find((candidate) => candidate.id === templateId) ?? templates[0],
@@ -94,13 +97,49 @@ export default function StrategyBuilder() {
           },
         }),
       });
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json()) as { error?: string; strategy?: { id?: string } };
       if (!response.ok) throw new Error(payload.error ?? "Unable to save strategy");
+      if (!payload.strategy?.id) throw new Error("Strategy was saved without an identifier");
+      setStrategyId(payload.strategy.id);
       setSaved(true);
     } catch (error: unknown) {
       setSaveError(error instanceof Error ? error.message : "Unable to save strategy");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function queueValidation() {
+    if (!strategyId) {
+      setQueueMessage("Save the strategy before queueing validation");
+      return;
+    }
+    setQueueing(true);
+    setQueueMessage("");
+    const endTime = Date.now();
+    const parameters = {
+      symbol,
+      interval,
+      initialEquity: 10_000,
+      feeRateBps: 4,
+      slippageBps: 2,
+      ...(mode === "paper"
+        ? { durationMs: 60_000 }
+        : { startTime: endTime - 7 * 24 * 60 * 60 * 1_000, endTime }),
+    };
+    try {
+      const response = await fetch(`/api/strategies/${strategyId}/runs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ run_type: mode, parameters }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Unable to queue validation");
+      setQueueMessage(`${mode === "paper" ? "Paper" : "Backtest"} validation queued`);
+    } catch (error: unknown) {
+      setQueueMessage(error instanceof Error ? error.message : "Unable to queue validation");
+    } finally {
+      setQueueing(false);
     }
   }
 
@@ -189,11 +228,19 @@ export default function StrategyBuilder() {
             <span className="step-count">3 / 3</span>
           </div>
           <div className="mode-options">
-            <button className={mode === "paper" ? "mode-option selected" : "mode-option"} onClick={() => setMode("paper")} type="button">
+            <button
+              className={mode === "paper" ? "mode-option selected" : "mode-option"}
+              onClick={() => { setMode("paper"); setStrategyId(""); setSaved(false); }}
+              type="button"
+            >
               <span className="mode-radio" />
               <span><strong>Paper trading</strong><small>Live market data, no real orders</small></span>
             </button>
-            <button className={mode === "backtest" ? "mode-option selected" : "mode-option"} onClick={() => setMode("backtest")} type="button">
+            <button
+              className={mode === "backtest" ? "mode-option selected" : "mode-option"}
+              onClick={() => { setMode("backtest"); setStrategyId(""); setSaved(false); }}
+              type="button"
+            >
               <span className="mode-radio" />
               <span><strong>Historical backtest</strong><small>Validate against stored candle data</small></span>
             </button>
@@ -206,6 +253,15 @@ export default function StrategyBuilder() {
             {saving ? "Saving strategy…" : saved ? "Strategy saved" : `Save ${mode} draft`}
           </button>
           <p className="run-error">{saveError || (workspaceName ? `Workspace: ${workspaceName}` : "Loading workspace…")}</p>
+          <button
+            className="secondary-button wide-button"
+            onClick={queueValidation}
+            disabled={queueing || !strategyId}
+            type="button"
+          >
+            {queueing ? "Queueing validation…" : `Queue ${mode} validation`}
+          </button>
+          <p className="run-error">{queueMessage}</p>
         </section>
 
         <section className="builder-card summary-card">
